@@ -7,6 +7,7 @@
 alias kdp='kubectl describe pods'
 alias kgp='kubectl get pods'
 alias kl='kubectl logs'
+alias cc='/Users/manish/.local/bin/claude'
 
 # Local Alias
 alias -s rb=vim
