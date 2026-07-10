@@ -1,8 +1,8 @@
 ---
-schema_version: 1
+schema_version: 2
 log_id: <generated-log-id>
 created_at: <UTC timestamp>
-task_type: <implementation|audit|debugging|validation|documentation|operations|maintenance|research>
+task_type: implementation
 status: <completed|partial|blocked>
 task_id: <task ID, label, or none>
 session_id: <Claude session ID or unknown>
@@ -11,6 +11,9 @@ repository: <absolute repository root>
 branch: <branch or DETACHED>
 head_before: <full SHA or unknown>
 head_after: <full SHA or unknown>
+validation_status: <passed|failed|partial|not_run>
+issue_state: <open|closed|unchanged|not_applicable|unknown>
+audit_verdict: not_applicable
 ---
 
 # Implementation Log: <concise task title>
@@ -29,9 +32,17 @@ head_after: <full SHA or unknown>
 
 - <Work explicitly outside this task, or none.>
 
+## Repository and Task State
+
+- **Repository state:** <clean/dirty and concise explanation>
+- **Branch:** <branch>
+- **HEAD:** <full or abbreviated SHA>
+- **Task/issue:** <identifier and title, or none>
+- **Issue state:** <open/closed/unchanged/not applicable/unknown>
+
 ## Work Performed
 
-- **VERIFIED** — <Concrete implementation, audit, investigation, validation, or documentation work.>
+- **VERIFIED** — <Concrete implementation work.>
 
 ## Files Changed or Inspected
 
@@ -49,17 +60,25 @@ head_after: <full SHA or unknown>
 |---|---|---|---|---|
 | `<exact command or procedure>` | <PASS/FAIL/SKIPPED/NOT RUN> | <VERIFIED or SESSION EVIDENCE> | <Supported conclusion> | <Remaining limitation> |
 
-## Findings
+## Final Validation Summary
 
-- <Audit, debugging, or validation finding; use “None” only when genuinely applicable.>
+- **Overall validation:** <PASS|FAIL|PARTIAL|NOT RUN>
+- **Other gates:** <test/typecheck/lint/build/migration/static checks or not applicable>
+- **Checks not run:** <Explicit list or “None.”>
+- **Confidence supported:** <What the validation justifies.>
+- **Does not prove:** <What remains outside the evidence.>
+
+## Implementation Result
+
+<One concise statement of the actual implementation outcome and completion status.>
+
+## Known Limitations
+
+- <Known limitation or “None identified within the completed scope.”>
 
 ## Risks and Unresolved Items
 
 - <Material risk, blocker, uncertainty, or “None identified within the completed scope.”>
-
-## Result
-
-<One concise statement of the actual outcome and status.>
 
 ## Next Action
 
@@ -67,4 +86,4 @@ head_after: <full SHA or unknown>
 
 ## Shareable Summary
 
-<Self-contained 150–300 word summary suitable for sharing with another reviewer or ChatGPT. Include objective, result, validation, unresolved items, and next action.>
+<Self-contained 150–350 word summary suitable for sharing with another reviewer or ChatGPT. Include objective, implementation result, files or contracts affected, validation status, unresolved items, issue state, and next action.>
