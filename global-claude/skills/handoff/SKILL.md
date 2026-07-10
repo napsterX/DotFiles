@@ -1,99 +1,203 @@
 ---
 name: handoff
-description: Capture the full context of the current session into a HANDOFF.md file in the repo so a future session can resume with complete context. Use when the user runs /handoff, asks to create a handoff, save session context, write a session summary, or prepare to continue work in a new session.
+description: Create a verified operational handoff for the current Claude Code task before clearing, changing sessions, or transferring work. Use only when the user explicitly invokes /handoff.
+argument-hint: "[optional-label-or-focus]"
+disable-model-invocation: true
+user-invocable: true
+model: opus
+effort: high
 ---
 
 # Handoff
 
-Write a complete, self-contained handoff of the **current session** to a file in the repo so a brand-new session (which has zero memory of this conversation) can resume with full context.
+Create a durable, verified operational handoff for the active task. The handoff
+is recovery state, not an informal summary and not a substitute for the
+repository.
 
-The reader of this file is a future Claude session with **no access to this conversation**. Assume it knows nothing. Every fact it needs to continue must be written down explicitly. Err heavily toward over-including context - a handoff that is too detailed costs a few extra tokens; one that is too thin loses the session.
+Do not use a forked subagent for the core handoff. The current conversation is
+required to recover objectives, constraints, decisions, rejected approaches,
+and validation evidence.
 
-## Step 1: Gather the objective repo state
+Read these supporting files before writing the handoff:
 
-Run these to capture ground truth (don't rely on memory for git state):
+- [references/handoff-policy.md](references/handoff-policy.md)
+- [templates/HANDOFF.md](templates/HANDOFF.md)
+
+The optional user focus is:
+
+```text
+$ARGUMENTS
+```
+
+The current Claude session ID is:
+
+```text
+${CLAUDE_SESSION_ID}
+```
+
+## Procedure
+
+### 1. Establish the active task
+
+Determine from the conversation and authoritative project material:
+
+- the single active objective;
+- the definition of done;
+- the current phase;
+- applicable user requirements and constraints;
+- decisions and invariants that still govern the work;
+- explicitly rejected or superseded approaches;
+- unresolved failures, blockers, and uncertainty;
+- the smallest executable next action.
+
+Do not merge unrelated tasks into one handoff. If the session contains several
+threads, preserve only the thread the user is currently continuing and list
+other unfinished threads as deferred context.
+
+### 2. Collect deterministic state
+
+Run:
 
 ```bash
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-echo "ROOT=$ROOT"
-git -C "$ROOT" branch --show-current 2>/dev/null
-git -C "$ROOT" status --short 2>/dev/null
-git -C "$ROOT" log --oneline -10 2>/dev/null
-git -C "$ROOT" diff --stat 2>/dev/null
+python3 "$HOME/.claude/session-continuity/bin/session_state.py" collect \
+  --cwd "$PWD" \
+  --session-id "${CLAUDE_SESSION_ID}"
 ```
 
-If not in a git repo, use the current working directory as `ROOT` and note that it's not a git repo.
+Use the returned project root, project key, storage directory, branch, HEAD,
+status, changed-file list, and timestamp as verified evidence.
 
-## Step 2: Reconstruct the session context
+Also inspect only the project material needed to verify the active task:
 
-Look back over the **entire current conversation** and extract everything a successor would need. Be thorough and specific - name real files, real paths, real commands, real function/symbol names. Cover at least:
+- applicable `CLAUDE.md`, `CLAUDE.local.md`, and scoped rules;
+- the active issue, task, plan, architecture contract, or implementation note;
+- files changed or discussed during the session;
+- relevant diffs;
+- the latest validation output already present in the conversation or files.
 
-- **The objective** - what the user is ultimately trying to accomplish (the goal behind the tasks, not just the last request).
-- **What was done this session** - concrete changes, in order: files created/edited, what changed in each and why.
-- **Current state** - what works and is verified, what is half-done, what is broken or untested.
-- **Key decisions and their rationale** - choices made and the reasoning/tradeoffs, so they aren't relitigated or accidentally reversed.
-- **Open items / next steps** - the ordered TODO list to pick up next, as concrete actions.
-- **Gotchas** - environment quirks, non-obvious commands, things that failed and why, dead ends already ruled out, pitfalls to avoid.
-- **User preferences expressed this session** - anything about how the user wants things done that came up in conversation.
-- **Anything in flight** - partially applied edits, pending validations, unanswered questions for the user.
+Do not run broad or expensive test suites solely to create a handoff. Low-cost
+read-only verification is allowed. Record any validation not rerun as reused
+session evidence rather than fresh evidence.
 
-## Step 3: Write the handoff file
+### 3. Write a draft
 
-Write to **`$ROOT/HANDOFF.md`** (repo root). Overwrite any existing `HANDOFF.md` - it always represents the latest handoff. Use the current date from the environment context for the heading (do not run a date command; the conversation context provides today's date).
+Use the exact template and evidence labels from the supporting files. Keep the
+handoff concise enough to be reconstructed quickly:
 
-Follow the user's global Markdown style: put each full sentence on its own line, and never use the em dash character (use a plain dash).
+- target: at most 300 lines;
+- hard limit: 32 KiB;
+- no full large diffs;
+- no full raw logs;
+- no environment dumps;
+- no secret values.
 
-Use exactly this structure, filled with real content (not placeholders). Omit a section only if it genuinely has nothing:
+For every material claim, distinguish:
 
-```markdown
-# Session Handoff - <YYYY-MM-DD>
+- **VERIFIED** — confirmed from current repository, filesystem, or command
+  output;
+- **SESSION EVIDENCE** — recorded in this conversation but not rerun now;
+- **INFERRED** — a reasoned conclusion that still needs verification;
+- **UNKNOWN** — unresolved.
 
-## Resume Here
-<Two or three sentences: where things stand right now and the single most important next action. This is what the next session reads first.>
+Repository state and authoritative tracked contracts override conversation
+claims.
 
-## Objective
-<The overarching goal this work serves.>
+Write the draft to a temporary file outside the repository. Obtain the path
+with:
 
-## Current State
-- Repo root: <path>
-- Branch: <branch>
-- Working tree: <clean, or summary of uncommitted changes>
-- Verified working: <what has been confirmed to work>
-- Not yet done / broken: <what is incomplete or failing>
-
-## Work Completed This Session
-<Ordered list of concrete changes, each with the file path and what/why.>
-
-## Key Files and Locations
-<Bulleted map of the files that matter, each with a one-line description of its role.>
-
-## Decisions and Rationale
-<Each significant decision and why it was made, including tradeoffs and rejected alternatives.>
-
-## Open Items / Next Steps
-<Ordered, concrete TODO list for the next session.>
-
-## Gotchas and Notes
-<Environment quirks, exact commands to run, things that failed and why, dead ends already ruled out.>
-
-## How to Resume in a New Session
-Paste this into the new session:
-
-> Read HANDOFF.md at the repo root and load the context from the previous session.
-> Do not resume, continue, or start implementing any task yet - just confirm you've read it and give me a short summary of where things stand.
-> I will tell you what to work on next.
+```bash
+python3 "$HOME/.claude/session-continuity/bin/session_state.py" draft-path \
+  --cwd "$PWD" \
+  --kind handoff
 ```
 
-## Step 4: Confirm
+### 4. Validate and publish atomically
 
-Tell the user:
-- The path that was written (`$ROOT/HANDOFF.md`).
-- The exact resume prompt they can paste into the next session (the "How to Resume" block).
-- A note that `HANDOFF.md` is tracked by git status - if they don't want it committed, they can add it to `.gitignore` (offer to do this, don't do it unprompted).
+Validate the draft:
 
-## Notes
+```bash
+python3 "$HOME/.claude/session-continuity/bin/session_state.py" validate \
+  --kind handoff \
+  --file "<draft-path>"
+```
 
-- Do not commit or push anything. Just write the file.
-- This is a snapshot of the current session only. It is not meant to accumulate history - each run overwrites the previous handoff.
-- **The resume prompt is context-only by default - never an instruction to act.** A new session has no memory of this one, so any wording like "continue where the previous session left off" or a bundled "next task" reads as a command to immediately resume implementation, not as a request to load context. The whole point of this skill is capturing context for the user to decide what happens next - the new session should read the file, confirm it understood, summarize the state back, and then wait. Do not restore the old pattern of folding "continue with <task>" into the resume prompt, even if it seems convenient for a specific handoff - that regresses this exact bug.
-- If the user asks for a differently named or located file (for example a timestamped archive under `.claude/`), honor that instead of the default.
+Resolve every validation error. Do not suppress a credential warning without
+reading the flagged line and confirming it contains only a safe placeholder.
+
+Publish only after validation succeeds:
+
+```bash
+python3 "$HOME/.claude/session-continuity/bin/session_state.py" publish \
+  --kind handoff \
+  --source "<draft-path>" \
+  --cwd "$PWD" \
+  --session-id "${CLAUDE_SESSION_ID}" \
+  --label "$ARGUMENTS"
+```
+
+The helper atomically replaces `CURRENT.md`, writes sidecar metadata, and
+archives the same validated content.
+
+### 5. Re-read the published handoff
+
+Read the final `CURRENT.md` path returned by `publish`. Check for:
+
+- contradictions between objective and next action;
+- incorrect branch, HEAD, or working-tree claims;
+- completion claims unsupported by evidence;
+- stale rejected approaches presented as active decisions;
+- missing material blockers;
+- leaked secret values;
+- a vague or non-executable next action.
+
+If the final file is wrong, correct a new draft and publish again. Never report
+success merely because a file exists.
+
+## Stop conditions
+
+Stop and report instead of publishing when:
+
+- the active objective cannot be identified without guessing;
+- the current directory cannot be resolved safely;
+- authoritative project state materially contradicts the conversation and the
+  correct state cannot be established;
+- required handoff sections cannot be completed honestly;
+- the draft contains a suspected credential or private key;
+- the helper or atomic publish fails;
+- the next action cannot be stated as a concrete operation.
+
+## Required final output
+
+Return exactly this structure:
+
+```text
+HANDOFF CREATED
+
+Objective:
+<one sentence>
+
+Handoff:
+<absolute CURRENT.md path>
+
+Archive:
+<absolute archive path>
+
+Repository State:
+- Root: <path>
+- Branch: <branch or NOT A GIT REPOSITORY>
+- HEAD: <abbreviated SHA or NOT APPLICABLE>
+- Working tree: CLEAN / DIRTY / NOT APPLICABLE
+
+Next Exact Action:
+<one concrete action>
+
+Material Uncertainty:
+<none, or concise statement>
+
+Next Commands:
+/clear <short-sanitized-label>
+/resume-handoff
+```
+
+Do not attempt to execute `/clear` yourself. Do not perform the next action in
+the same turn after publishing the handoff.

@@ -1,136 +1,167 @@
 ---
 name: audit
-description: Audit the most recent implementation against its original request without making any code changes - inspects changed files, tests, docs, and behavior, then reports PASS / PASS WITH GAPS / FAIL with prioritized findings. Use when the user asks to audit, verify, sanity-check, or double-check a completed implementation against what was originally asked, wants a second opinion before merging, or invokes /audit.
+description: Perform a read-only audit of the most recent implementation against its original request. Inspect changed behavior, diff, tests, documentation, security boundaries, regression risk, and CI enforcement; use minimal-sufficient-testing to assess evidence; then report PASS, PASS WITH GAPS, FAIL, or AUDIT BLOCKED.
 user-invocable: true
 ---
 
 # Audit
 
-Audit the last implementation against the original task/request.
-This is a read-only sanity check, not a code-review-and-fix loop: inspect,
-judge, report. Never assume the implementation is correct because it exists,
-because tests were reportedly run, or because a prior turn claimed success.
+Audit the implementation against what was actually requested.
 
-## Ground rules
+This is read-only. Inspect, validate, judge, and report. Do not fix code.
 
-- **Do not make code changes.** Read-only, end to end. If you spot a fix,
-  name it as a finding - do not apply it.
-- **Do not assume the implementation is correct.** Verify claims made in
-  commit messages, PR descriptions, or prior conversation turns by reading
-  the actual diff and running the actual checks yourself, rather than taking
-  them at face value.
-- Inspect the changed files, the tests, the docs, and the actual runtime
-  behavior where feasible - not just the diff in isolation.
+Do not assume correctness because code exists, a previous response claimed completion, a commit message says tests passed, a PR is open, or a generic suite is green.
 
-## 1. Establish the original objective
+## Authority
 
-Find what was actually asked, in this order:
+This skill owns:
 
-1. The conversation context, if this skill is invoked in the same session
-   that did the work.
-2. The PR description or linked issue, if the change is already on a branch
-   with a PR open.
-3. The most recent commit message(s) on the branch, if neither of the above
-   is available.
-4. If none of these give a clear objective, ask the user directly rather
-   than guessing - an audit against a guessed objective is worthless.
+- original-objective determination
+- audited-scope determination
+- requirement coverage
+- implementation findings
+- finding priority
+- final audit verdict
 
-## 2. Establish what changed
+`~/.claude/skills/minimal-sufficient-testing/SKILL.md` owns:
 
-Default to `git diff` against the merge-base with the repo's default branch
-(detect whether it's `main` or `master`). If the user names a specific
-commit range, PR, or file set, use that instead. Read the full diff, not
-just the file list - a summary built from filenames alone misses behavior
-changes.
+- evidence reuse and invalidation
+- risk-weighted testing
+- CI-enforcement assessment
+- testing stop conditions
+- testing confidence
 
-## 3. Work the checklist
+Invoke it in Validate mode for testing sufficiency.
 
-1. What was the original objective?
-2. What changed?
-3. Does the implementation actually satisfy the objective?
-4. Are there missing requirements?
-5. Are there unintended behavior changes?
-6. Are there duplicated patterns, dead code, or shortcuts?
-7. Are security/privacy/auth/data-boundary concerns still respected?
-8. Are tests sufficient for the changed behavior?
-9. Are docs/contracts updated if needed?
-10. Are there regressions or risky assumptions?
+## Required supporting files
 
-## 4. Run validation, if appropriate
+Read:
 
-Detect what this repo actually has before running anything - check
-`package.json` scripts, a `Makefile`, or the project's own contributing docs,
-rather than assuming a fixed command set. Typical categories, run whichever
-exist:
+- `finding-policy.md`
+- `report-format.md`
 
-- typecheck
-- lint
-- unit tests
-- static tests
-- build
-- a targeted browser/e2e test, only if the change affects UI or workflow
-  behavior
+## Modes
 
-Mark a category `NOT APPLICABLE` when the repo has no such check at all, not
-`NOT RUN` - `NOT RUN` is reserved for a check that exists but was skipped or
-could not be executed.
+### Standalone
 
-## 5. Report
+Use when directly invoked by the user.
 
-Output in exactly this format, nothing above or below it except a one-line
-flag if something blocked the audit itself (e.g. the original objective
-couldn't be determined and the user didn't answer):
+Use conversation context as the first objective source. Ask only when the objective cannot be established from any available source.
 
-```
-IMPLEMENTATION AUDIT RESULT
+### Parent-skill
 
-Verdict:
-PASS / PASS WITH GAPS / FAIL
+Use when invoked by `audit-and-pr` or another orchestrator.
 
-Original Objective:
-<one paragraph>
+The parent should supply repository, branch, scope, objective, prior evidence, and previous findings when relevant.
 
-Implemented Changes:
-<bullet list>
+Do not ask the user in this mode. Return `AUDIT BLOCKED` if essential context remains unavailable.
 
-Requirement Coverage:
-- Requirement 1: PASS / GAP / FAIL
-- Requirement 2: PASS / GAP / FAIL
-- Requirement 3: PASS / GAP / FAIL
+## Read-only rules
 
-Findings:
-P0:
-- <must-fix blocker, if any>
+Do not intentionally modify:
 
-P1:
-- <must fix before merge/launch, if any>
+- production code
+- tests
+- docs
+- config
+- migrations
+- generated source
+- tracked files
 
-P2:
-- <should fix soon, if any>
+Validation commands selected by `minimal-sufficient-testing` may run.
 
-P3:
-- <polish/docs/follow-up, if any>
+If a validation command unexpectedly modifies tracked files:
 
-Tests / Validation:
-- typecheck: PASS / FAIL / NOT RUN / NOT APPLICABLE
-- lint: PASS / FAIL / NOT RUN / NOT APPLICABLE
-- unit: PASS / FAIL / NOT RUN / NOT APPLICABLE
-- static: PASS / FAIL / NOT RUN / NOT APPLICABLE
-- build: PASS / FAIL / NOT RUN / NOT APPLICABLE
-- browser/e2e: PASS / FAIL / NOT RUN / NOT APPLICABLE
+- stop that validation path
+- report an audit-process note
+- do not broadly reset or overwrite user work
 
-Risk Assessment:
-<low / medium / high, with reason>
+Never use destructive Git cleanup.
 
-Recommended Action:
-MERGE / FIX FIRST / SPLIT FOLLOW-UP / REVERT
-```
+## Establish the original objective
 
-List only the requirements that actually apply to this change under
-Requirement Coverage - do not pad to three if there are two, and do not
-merge distinct requirements together just to hit a count.
-Omit a Findings priority section entirely (not "- none") when it has nothing
-in it.
+Use this order:
 
-If fixes are needed, end the report with the smallest safe follow-up prompt
-that addresses only the gaps - not a rewrite of the whole task.
+1. Current conversation.
+2. Objective supplied by a parent.
+3. Linked issue or ticket.
+4. PR description.
+5. Branch-associated issue.
+6. Relevant commits.
+7. Authoritative implementation document tied to the change.
+
+Do not infer the objective solely from the diff.
+
+If sources conflict, prefer the most direct authoritative source and report the conflict.
+
+If objective remains unknown:
+
+- Standalone: ask the user.
+- Parent-skill: return `AUDIT BLOCKED`.
+
+## Establish audited scope
+
+Determine:
+
+- repository
+- default branch
+- current branch
+- current commit
+- working-tree status
+- merge-base
+- audited range or diff
+- relevant untracked implementation files
+- unrelated pre-existing changes
+- existing PR
+
+Default to the complete diff from the merge-base with the default branch unless a specific range, PR, or file set was provided.
+
+Read the full diff, not only filenames or statistics.
+
+## Read repository authority
+
+Inspect applicable guidance:
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `CONTRIBUTING.md`
+- architecture docs
+- implementation plans
+- ticket contracts
+- API contracts
+- schema conventions
+- security rules
+- testing conventions
+- module ownership
+- protected zones
+- generated-code policies
+- CI conventions
+
+Apply only rules that actually exist.
+
+## Review ten dimensions
+
+1. Original objective.
+2. Implemented behavior.
+3. Requirement satisfaction.
+4. Missing or partial requirements.
+5. Unintended behavior changes.
+6. Duplication, dead code, shortcuts, weakened checks, accidental files.
+7. Security, privacy, auth, tenancy, data, payments, migrations, idempotency, and external boundaries.
+8. Testing sufficiency and CI enforcement through `minimal-sufficient-testing`.
+9. Documentation and contract updates.
+10. Regression, rollout, rollback, and assumption risk.
+
+## Runtime validation
+
+When required and feasible, validate actual behavior through targeted local, test, staging, mocked, or repository-supported mechanisms.
+
+Do not perform destructive production actions.
+
+If required validation is unavailable, preserve that limitation in the testing assessment and verdict.
+
+## Output
+
+Return the format defined in `report-format.md`.
+
+Do not emit a long running monologue. A parent skill may provide concise milestone updates.
