@@ -1,0 +1,63 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm test)",
+      "Bash(pnpm build)",
+      "Bash(pnpm typecheck)",
+      "Bash(npm install)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run ready:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run quality:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(echo:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(head:*)",
+      "Bash(cd:*)",
+      "Bash(tail:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git reset --hard)",
+      "Bash(git clean -fd *)",
+      "Bash(vercel --prod *)",
+      "Bash(supabase db push *)",
+      "Bash(supabase db reset *)",
+      "Bash(terraform destroy *)"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "model": "opus[1m]",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\a' >> /dev/tty 2>/dev/null || printf '\\a'"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "sh ~/.claude/statusline-command.sh"
+  },
+  "effortLevel": "xhigh",
+  "voice": {
+    "enabled": false,
+    "mode": "hold"
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "theme": "dark",
+  "voiceEnabled": false
+}

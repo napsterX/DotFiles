@@ -1,0 +1,28 @@
+.DS_Store
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Environment and credential files
+.env
+.env.*
+*credential*
+*credentials*
+*secret*
+*secrets*
+*token*
+*tokens*
+*key*
+*keys*
+
+# Local runtime/state material
+history/
+projects/
+session-env/
+shell-snapshots/
+cache/
+debug/
+todos/
+telemetry/
+statsig/
