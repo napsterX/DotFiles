@@ -55,6 +55,36 @@
             "type": "command"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "args": [
+              "/Users/manish/.claude/session-continuity/hooks/implementation_log_stop_guard.py"
+            ],
+            "command": "python3",
+            "statusMessage": "Checking implementation-log coverage",
+            "timeout": 20,
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "/Users/manish/.claude/session-continuity/hooks/implementation_log_prompt_start.py"
+            ],
+            "command": "python3",
+            "statusMessage": "Capturing implementation-log baseline",
+            "timeout": 20,
+            "type": "command"
+          }
+        ],
+        "matcher": ""
       }
     ]
   },
