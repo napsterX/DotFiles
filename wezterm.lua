@@ -24,6 +24,19 @@ config.window_padding = {
 	bottom = 8,
 }
 
+-- Auto-resize the window when the available screen space changes (e.g., when
+-- unplugging an external monitor). WezTerm adjusts the window to fit the new
+-- screen dimensions rather than staying at the old fixed size.
+config.adjust_window_size_when_changing_font_size = true
+config.window_close_confirmation = "NeverPrompt"
+
+-- Set initial window dimensions to reasonable defaults that work on most
+-- screens (will be overridden if you've explicitly sized the window before).
+-- When a screen disconnects, WezTerm will respect the available space on the
+-- remaining screen(s) rather than forcing the old size.
+config.initial_cols = 220
+config.initial_rows = 50
+
 --------------------------------------------------------------------------------
 -- Tabs
 --------------------------------------------------------------------------------
@@ -54,8 +67,8 @@ config.keys = {
 	{ key = "LeftArrow", mods = "CMD|SHIFT", action = act.MoveTabRelative(-1) },
 	{ key = "RightArrow", mods = "CMD|SHIFT", action = act.MoveTabRelative(1) },
 
-	-- Tabs: new / close
-	{ key = "t", mods = "CMD", action = act.SpawnTab("CurrentPaneDomain") },
+	-- Tabs: new (always opens in the home directory, not the current pane's cwd)
+	{ key = "t", mods = "CMD", action = act.SpawnCommandInNewTab({ cwd = wezterm.home_dir }) },
 	{ key = "w", mods = "CMD", action = act.CloseCurrentTab({ confirm = true }) },
 
 	-- Tabs: rename the current tab (inline prompt at the bottom of the window)
