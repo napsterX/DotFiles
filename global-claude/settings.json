@@ -1,94 +1,4 @@
 {
-  "effortLevel": "xhigh",
-  "hooks": {
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "args": [
-              "/Users/manish/.claude/session-continuity/hooks/precompact_snapshot.py"
-            ],
-            "command": "python3",
-            "statusMessage": "Saving session continuity snapshot",
-            "timeout": 20,
-            "type": "command"
-          }
-        ],
-        "matcher": "manual|auto"
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "args": [
-              "/Users/manish/.claude/session-continuity/hooks/sessionstart_compact_reinject.py"
-            ],
-            "command": "python3",
-            "statusMessage": "Restoring compaction anchor",
-            "timeout": 20,
-            "type": "command"
-          }
-        ],
-        "matcher": "compact"
-      },
-      {
-        "hooks": [
-          {
-            "args": [
-              "/Users/manish/.claude/session-continuity/hooks/sessionstart_clear_hint.py"
-            ],
-            "command": "python3",
-            "statusMessage": "Checking for a task handoff",
-            "timeout": 20,
-            "type": "command"
-          }
-        ],
-        "matcher": "clear"
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "command": "printf '\\a' >> /dev/tty 2>/dev/null || printf '\\a'",
-            "type": "command"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "args": [
-              "/Users/manish/.claude/session-continuity/hooks/implementation_log_stop_guard.py"
-            ],
-            "command": "python3",
-            "statusMessage": "Checking implementation-log coverage",
-            "timeout": 20,
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "args": [
-              "/Users/manish/.claude/session-continuity/hooks/implementation_log_prompt_start.py"
-            ],
-            "command": "python3",
-            "statusMessage": "Capturing implementation-log baseline",
-            "timeout": 20,
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      }
-    ]
-  },
-  "model": "opus[1m]",
   "permissions": {
     "allow": [
       "Bash(pnpm install)",
@@ -113,7 +23,6 @@
       "Bash(tail:*)",
       "Bash(git log:*)"
     ],
-    "defaultMode": "bypassPermissions",
     "deny": [
       "Bash(rm -rf *)",
       "Bash(git reset --hard)",
@@ -122,18 +31,109 @@
       "Bash(supabase db push *)",
       "Bash(supabase db reset *)",
       "Bash(terraform destroy *)"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "model": "opus[1m]",
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "/Users/manish/.claude/session-continuity/hooks/precompact_snapshot.py"
+            ],
+            "timeout": 20,
+            "statusMessage": "Saving session continuity snapshot"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "/Users/manish/.claude/session-continuity/hooks/sessionstart_compact_reinject.py"
+            ],
+            "timeout": 20,
+            "statusMessage": "Restoring compaction anchor"
+          }
+        ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "/Users/manish/.claude/session-continuity/hooks/sessionstart_clear_hint.py"
+            ],
+            "timeout": 20,
+            "statusMessage": "Checking for a task handoff"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\a' >> /dev/tty 2>/dev/null || printf '\\a'"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "/Users/manish/.claude/session-continuity/hooks/implementation_log_stop_guard.py"
+            ],
+            "timeout": 20,
+            "statusMessage": "Checking implementation-log coverage"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "/Users/manish/.claude/session-continuity/hooks/implementation_log_prompt_start.py"
+            ],
+            "timeout": 20,
+            "statusMessage": "Capturing implementation-log baseline"
+          }
+        ]
+      }
     ]
   },
-  "skipDangerousModePermissionPrompt": true,
-  "skipWorkflowUsageWarning": true,
   "statusLine": {
-    "command": "sh ~/.claude/statusline-command.sh",
-    "type": "command"
+    "type": "command",
+    "command": "sh ~/.claude/statusline-command.sh"
   },
-  "theme": "dark",
+  "effortLevel": "xhigh",
   "voice": {
     "enabled": false,
     "mode": "hold"
   },
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "theme": "dark",
   "voiceEnabled": false
 }
