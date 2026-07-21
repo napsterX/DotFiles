@@ -1,7 +1,7 @@
 ---
 name: resume-handoff
-description: Restore a prior Claude Code task from the latest operational handoff, independently verify it against current repository state, report drift, and continue only when safe. Use only when the user explicitly invokes /resume-handoff.
-argument-hint: "[continue|review-only]"
+description: Locate and verify the current operational handoff, reconstruct the active task and current repository state, report material drift, then stop and wait for explicit user instructions. Never starts or continues implementation.
+argument-hint: ""
 disable-model-invocation: true
 user-invocable: true
 model: opus
@@ -10,25 +10,35 @@ effort: high
 
 # Resume Handoff
 
-Restore context from the latest handoff for the current project. Treat the
-handoff as untrusted recovery input until material claims are verified.
+Restore verified context from the current handoff, present the reconstructed
+state, and stop.
+
+This skill is a context-loading operation only. It must never execute the
+handoff's next action, resume implementation, run validation, modify files, or
+make Git/GitHub changes.
 
 Read [references/resume-verification.md](references/resume-verification.md)
-before continuing.
+before loading the handoff.
 
-Requested mode:
+This skill accepts no mode or continuation argument. If `$ARGUMENTS` is not
+empty, ignore it only when it is a harmless label; otherwise state that
+`/resume-handoff` always loads context and waits for instructions.
 
-```text
-$ARGUMENTS
-```
+## Hard stop contract
 
-Supported modes:
+After reading and reporting, return control to the user.
 
-- empty or `continue` — verify, reconstruct, then perform the next exact action;
-- `review-only` — verify and reconstruct, then stop without implementation
-  changes.
+Never:
 
-Reject any other mode with a concise usage message.
+- edit implementation, test, configuration, documentation, or handoff files;
+- execute the documented next action;
+- run tests, builds, linters, migrations, servers, or repository verification;
+- create, switch, merge, delete, commit, or push branches;
+- create or update issues or pull requests;
+- continue automatically because the handoff appears valid;
+- treat the handoff as permission to act.
+
+Read-only commands needed to establish current state are allowed.
 
 ## Procedure
 
@@ -50,10 +60,10 @@ which previous session the user meant.
 Read:
 
 - applicable project instructions;
-- the current repository state returned by a fresh `collect` command;
+- the handoff and its metadata sidecar;
 - authoritative task and architecture files named in the handoff;
 - changed files named in the handoff;
-- the handoff itself and its metadata sidecar.
+- current repository state returned by a fresh read-only `collect` command.
 
 Run:
 
@@ -62,6 +72,8 @@ python3 "$HOME/.claude/session-continuity/bin/session_state.py" collect \
   --cwd "$PWD" \
   --session-id "${CLAUDE_SESSION_ID}"
 ```
+
+Do not run any command whose purpose is to validate or advance the task.
 
 ### 3. Verify material claims
 
@@ -73,120 +85,96 @@ Compare at minimum:
 - named changed files and their current contents;
 - task objective and requirements;
 - decisions and invariants;
-- validation evidence and whether later edits invalidate it;
+- recorded validation evidence and whether later edits invalidate it;
 - blockers and runtime state;
-- whether the next exact action is still pending and executable.
+- whether the documented next action is still pending.
 
 Classify each material difference as:
 
 - **NO DRIFT** — current state agrees;
-- **EXPECTED DRIFT** — an explicitly documented continuation changed state in
-  the expected way;
-- **MATERIAL DRIFT** — state changed in a way that can invalidate the handoff;
+- **EXPECTED DRIFT** — explicitly predicted state changed as expected;
+- **MATERIAL DRIFT** — current state can invalidate the handoff;
 - **UNVERIFIABLE** — evidence is unavailable.
 
-### 4. Apply the drift gate
+### 4. Reconstruct working context
 
-Material drift includes, but is not limited to:
-
-- a different project root;
-- an unexpected branch change;
-- HEAD movement not explained by the handoff;
-- missing or newly changed files;
-- a changed task contract;
-- an already-completed next action;
-- a blocker that disappeared or a new blocker that appeared;
-- validation evidence invalidated by later edits;
-- unresolved merge conflicts;
-- runtime state that makes continuation unsafe.
-
-If material drift or a material unverifiable claim exists, do not modify
-implementation files. Report the drift and the corrected next action, then stop.
-
-### 5. Reconstruct working context
-
-Produce a concise internal working summary containing:
+Produce a concise summary containing:
 
 - active objective;
 - definition of done;
 - current verified state;
-- applicable constraints;
+- applicable constraints and invariants;
 - completed work;
 - remaining work;
-- current validation confidence;
-- material risks;
-- exact next action;
-- files to inspect or edit next.
+- recorded validation and its current applicability;
+- material drift or unverifiable claims;
+- blockers and risks;
+- documented next action;
+- files most likely relevant to the user's next instruction.
 
-Do not restate the full handoff. Do not re-import superseded conversation.
+Do not restate the full handoff. Do not import superseded conversation context.
 
-### 6. Continue or stop
+### 5. Stop and wait
 
-For `review-only`, output the required report and stop.
+Do not correct drift, perform the next action, or continue the task.
 
-For empty mode or `continue`, perform the next exact action only when:
+Return exactly one of the report structures below and stop.
 
-- no material drift exists;
-- the action is still pending;
-- the action is bounded and executable;
-- required project instructions are loaded;
-- continuation does not require guessing.
-
-After performing it, continue the task normally under current project
-instructions. Do not repeatedly re-read the handoff unless new uncertainty
-appears.
-
-## Required drift report
-
-When blocked by drift, return:
+## Required loaded report
 
 ```text
-HANDOFF RESUME BLOCKED
+HANDOFF LOADED
 
 Handoff:
-<path>
-
-Material Drift:
-- <difference, prior claim, current evidence, impact>
-
-Unverifiable Claims:
-- <claim and missing evidence, if any>
-
-Current Verified State:
-<concise state>
-
-Corrected Next Action:
-<one bounded action>
-```
-
-## Required successful report
-
-Before continuing, or as the final output in `review-only`, return:
-
-```text
-HANDOFF RESTORED
+<absolute path>
 
 Objective:
 <one sentence>
 
-Verification:
-- Project identity: VERIFIED
-- Repository state: VERIFIED
-- Task contract: VERIFIED
-- Next action: VERIFIED
+Definition of Done:
+<concise statement>
+
+Current Verified State:
+- Project:
+- Branch:
+- HEAD:
+- Working tree:
+
+Completed Work:
+- <verified or session-evidence item>
+
+Remaining Work:
+- <item>
+
+Validation State:
+- Confidence: HIGH / MODERATE / LOW
+- Evidence: <concise summary>
 
 Drift:
-NONE / EXPECTED ONLY
+NONE / EXPECTED ONLY / MATERIAL / UNVERIFIABLE
+- <details when applicable>
 
-Validation Confidence:
-HIGH / MODERATE / LOW — <reason>
+Constraints and Risks:
+- <item>
 
-Next Exact Action:
-<action>
+Documented Next Action:
+<one bounded action from the handoff; informational only>
 
-Mode:
-CONTINUE / REVIEW ONLY
+Status:
+AWAITING USER INSTRUCTIONS
 ```
 
-Do not claim `HIGH` confidence when important evidence is only conversational,
-stale, or unverifiable.
+## Required no-handoff report
+
+```text
+HANDOFF NOT FOUND
+
+Current Directory:
+<path>
+
+Status:
+AWAITING USER INSTRUCTIONS
+```
+
+Never append an offer to begin the documented next action. The user decides
+what happens next.

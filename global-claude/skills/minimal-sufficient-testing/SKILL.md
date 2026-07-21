@@ -1,6 +1,6 @@
 ---
 name: minimal-sufficient-testing
-description: Determine the smallest risk-weighted body of test evidence needed for a code change. Reuse trustworthy validation already completed, invalidate stale evidence, identify remaining coverage gaps, assess CI enforcement, and recommend or execute only the tests needed to reach justified confidence.
+description: Determine the smallest risk-weighted evidence plan for a change, reconcile planned versus executed checks, and report testing confidence separately from CI enforcement confidence and merge impact.
 user-invocable: true
 ---
 
@@ -24,6 +24,8 @@ This skill is the authority for:
 - deciding whether CI enforcement is required
 - stopping conditions
 - testing confidence
+- CI enforcement confidence
+- provisional merge-impact classification
 
 Other skills may supply objectives, diffs, findings, or an initial evidence ledger. They must not replace this decision framework.
 
@@ -55,7 +57,7 @@ Use when invoked by a read-only audit.
 - Execute required existing checks when necessary.
 - Do not add or edit tests.
 - Do not intentionally modify tracked files.
-- Return missing tests or CI enforcement as coverage gaps.
+- Return missing tests as testing gaps and CI enforcement limitations as a separate enforcement assessment.
 
 If a validation command unexpectedly modifies a tracked file, stop and report it. Do not silently overwrite or broadly restore user work.
 
@@ -96,10 +98,13 @@ If the changed behavior or objective cannot be identified, stop instead of gener
 6. Identify uncovered requirements and risks.
 7. Select the narrowest effective test layer.
 8. Determine whether the protection must be permanent and enforced in CI.
-9. Execute or prescribe only the missing work.
-10. Apply stop conditions.
-11. Assign High, Moderate, or Low confidence.
-12. Produce the required output.
+9. Record the evidence plan before executing missing checks or remediation validation.
+10. Execute or prescribe only the missing work.
+11. Reconcile every planned check as PASS, FAIL, UNAVAILABLE, NOT RUN, or NOT APPLICABLE.
+12. Apply testing stop conditions.
+13. Assign testing confidence independently from CI enforcement confidence.
+14. Classify provisional merge impact without overriding repository-specific merge policy.
+15. Produce the required output.
 
 ## Core stopping rule
 
@@ -111,8 +116,14 @@ Testing is sufficient when all applicable conditions are true:
 - likely regression surfaces are checked
 - applicable security and data-integrity boundaries are directly validated
 - meaningful repository quality gates have current passing evidence
-- required CI enforcement exists, is explicitly identified as a gap when CI is required, or the repository has no CI as an accepted state
+- planned and executed evidence reconcile, with no unexplained required check omitted
 - prior evidence was reviewed for continued validity
 - no unexplained failure or material uncertainty remains
 
 Stop there. Do not continue generating low-value tests for increasingly remote edge cases.
+
+CI enforcement is a durability property, not proof that the exact implementation
+works. A documented repository-wide CI coverage limitation must not lower
+testing confidence when the exact audited code state has direct, current,
+change-relevant evidence and no material gap remains. Report CI enforcement
+confidence and merge impact separately.

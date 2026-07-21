@@ -10,7 +10,7 @@ Repository or change defects, including:
 - missing requirement
 - security weakness
 - missing required test
-- missing CI enforcement
+- missing CI enforcement introduced by the change or required by repository policy
 - missing contract update
 - regression
 - risky assumption
@@ -30,6 +30,13 @@ Audit execution limitations, including:
 - repository metadata ambiguous
 
 Do not turn these into implementation findings unless they reveal a real repository defect.
+
+A documented, accepted repository-wide CI architecture limitation is not a
+per-change implementation finding merely because a directly executed local ship
+gate covers checks that GitHub Actions does not. Report that condition under CI
+enforcement confidence and merge eligibility. Create a finding only when the
+change removes or weakens required enforcement, violates repository policy, or
+introduces an actionable new gap.
 
 ## Priorities
 
@@ -57,8 +64,8 @@ Examples:
 - material data-integrity issue
 - primary workflow lacks direct validation
 - Low testing confidence
-- critical required CI enforcement is absent, when CI is required (not
-  merely that the repository has no CI as an accepted state)
+- the change removed, weakened, or bypassed required critical CI enforcement
+- repository policy explicitly makes the identified CI enforcement defect a shipment blocker
 - migration or rollback materially unsafe
 - repository-required quality gate can be bypassed
 
@@ -72,9 +79,7 @@ Examples:
 - non-critical failure-path gap
 - maintainability issue likely to create defects
 - important documentation or operational gap
-- meaningful non-critical test exists but is not enforced in the
-  repository's existing CI (not applicable when the repository has no CI as
-  an accepted state)
+- a new actionable non-critical CI enforcement gap introduced by the change
 - actionable behavior gap safe to ship temporarily
 
 Does not automatically block shipment.
@@ -100,9 +105,8 @@ Use only when:
 - objective satisfied
 - no P0-P3 implementation finding remains
 - testing confidence High
-- required CI enforcement present, when CI is required (a repository with no
-  CI as an accepted state satisfies this by definition)
 - no material audit limitation
+- any CI enforcement limitation is separately classified and is not an implementation finding
 
 ### PASS WITH GAPS
 
@@ -113,7 +117,7 @@ Use when:
 - testing confidence High or Moderate
 - one or more P2/P3 findings or named non-critical limitations remain
 
-Moderate confidence always means PASS WITH GAPS, not PASS.
+Moderate testing confidence always means PASS WITH GAPS, not PASS.
 
 ### FAIL
 
@@ -123,7 +127,7 @@ Use when:
 - objective not satisfied
 - testing confidence Low
 - testing stop condition triggered
-- CI enforcement is required and critical enforcement is absent
+- required CI enforcement was removed, weakened, bypassed, or violates an explicit shipment-blocking repository policy
 - unexplained validation failure remains
 
 ### AUDIT BLOCKED

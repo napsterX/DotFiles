@@ -1,80 +1,200 @@
 ---
 name: humanize
-description: Rewrite text in Manish's voice so it reads as human-written, not AI-generated. Use whenever Manish asks to humanize, de-AI, or rewrite text, asks to make something "sound like me" or "less like AI", or whenever drafting any outward-facing prose on his behalf (email, Slack, social posts, docs, announcements). Takes the text inline, as a file path, or from the most recent draft in the conversation.
+description: Rewrite supplied prose so it sounds like Manish wrote it, preserving meaning while removing AI cadence, inflated language, generic transitions, excessive structure, and polished-but-unnatural phrasing. Use when Manish explicitly asks to humanize, de-AI, make text sound like him, or make it less ChatGPT-ish.
+argument-hint: "[text-or-file-path]"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # Humanize
 
-Rewrite the given text so a colleague would assume Manish typed it himself.
-This skill exists so he never has to re-explain his voice or the AI-writing tells; everything is codified here and in the files below.
+Rewrite the supplied text so a real reader would assume Manish wrote it, not a
+language model.
 
-## Required reading, in order
+The goal is not casual grammar damage, slang injection, fake typos, or random
+sentence fragments. The goal is credible human authorship: direct intent,
+natural emphasis, uneven but controlled rhythm, specific reasoning, and no AI
+performance.
 
-1. `~/.claude/VOICE.md` - the canonical voice profile. The "Never do this" section is a hard ban list built from Wikipedia's "Signs of AI writing" guide plus Manish's own rules. If this file is missing, stop and tell him instead of improvising.
-2. `~/.claude/OPINIONS.md` - only when the text argues a position or makes a recommendation, so the substance matches how he thinks, not just how he sounds.
+## Required reading
+
+1. Read `~/.claude/VOICE.md`. It is the canonical voice profile and its
+   `Never do this` section is a hard constraint. If it is missing, stop and
+   state that the voice source is unavailable instead of inventing one.
+2. Read `~/.claude/OPINIONS.md` only when the text argues a position, makes a
+   recommendation, or speaks on Manish's behalf about a decision.
+
+Never manufacture a preference from `OPINIONS.md` when the source text is
+neutral.
 
 ## Input
 
-Accept any of:
+Accept:
 
-- Text pasted directly with the invocation.
-- A file path; read the file and rewrite its prose (leave code blocks, data, and quoted material untouched).
-- Nothing; humanize the most recent draft I produced in this conversation.
+- text pasted with the invocation;
+- a file path, preserving code blocks, data, legal language, and quotations
+  unless the user explicitly asks to rewrite them;
+- no argument, in which case use the most recent complete draft produced in the
+  current conversation.
 
-If there is genuinely no text to work on, ask for it.
+If no source text exists, ask for it and stop.
+
+## Non-negotiable preservation rules
+
+Preserve:
+
+- the intended message and requested outcome;
+- names, dates, amounts, commitments, caveats, and factual qualifiers;
+- technical terms that are genuinely precise;
+- the original level of certainty;
+- deliberate politeness, disagreement, urgency, or restraint.
+
+Never:
+
+- add facts, examples, praise, apologies, promises, links, or claims;
+- strengthen a weak claim into certainty;
+- make the speaker warmer, harsher, funnier, or more diplomatic than the source
+  requires;
+- hide a concern behind generic positivity;
+- use deliberate errors as proof of humanity;
+- rewrite quoted material without permission.
+
+If the source contains a likely factual error or contradiction, flag it in one
+plain line rather than silently laundering it.
 
 ## Process
 
-### 1. Identify the medium
+### 1. Identify the real job of the text
 
-Email, Slack, social post, doc, or something else.
-The per-medium rules in VOICE.md change the output substantially (greeting-and-close in email, lowercase openings in Slack, sentence-per-line in Markdown docs).
-If the medium is ambiguous and it matters, make the obvious assumption and say what you assumed; do not interrogate him about it.
+Determine:
 
-### 2. Extract the intent, then rewrite from scratch
+- medium: email, Slack/chat, social post, document, announcement, or other;
+- audience and relationship;
+- single primary point;
+- action, decision, or response expected from the reader;
+- facts and wording that must survive unchanged.
 
-Do not line-edit the original.
-Identify what the text is actually trying to say (the ask, the news, the argument), then write it fresh in Manish's voice:
+Make the obvious medium assumption when safe. Do not ask a question merely to
+avoid making a routine judgment.
 
-- Warm but efficient; the point arrives early.
-- Flowing, layered sentences with natural unevenness, not staccato fragments and not uniform lengths.
-- Opinions carry their reasoning.
-- Disagreement or bad news leads with genuine acknowledgment, then the concern, delivered early rather than buried.
-- Plain words unless jargon is the precise term for a technical audience.
-- At most one dry aside, and only if it arrives naturally.
+### 2. Strip the generated-text scaffolding
 
-### 3. Run the ban-list pass
+Before rewriting, remove the hidden structure typical of AI drafts:
 
-Re-scan the draft against every item in VOICE.md's "Never do this" section.
-This pass is mandatory; these patterns are reflexive and will appear in first drafts.
-The highest-frequency offenders to check for:
+- throat-clearing before the actual point;
+- generic framing that could fit any topic;
+- repeated summaries of what was just said;
+- symmetrical paragraph construction;
+- headings for material that does not need headings;
+- bullet lists used only to manufacture clarity;
+- three-item lists used as rhythm rather than substance;
+- conclusion paragraphs that merely restate the opening;
+- excessive caveats placed before the position;
+- fake collaborative language such as `let's dive in`, `we can explore`, or
+  `here's a breakdown`.
 
-- AI vocabulary ("delve", "pivotal", "underscore", "leverage", "seamless", "robust", "landscape", "additionally", "foster").
-- Negative parallelisms ("not just X, but Y" / "it's not X, it's Y" / reflexive "X rather than Y").
-- Rule-of-three lists used as rhythm filler.
-- "Serves as" / "features" / "offers" where "is" or "has" would do.
-- Trailing "-ing" analysis clauses ("...highlighting the importance of...").
-- Elegant variation; repeat the word instead.
-- Throat-clearing ("It's worth noting", "That being said"), sycophancy, fake collaboration ("let's dive in"), and summary sentences that restate the paragraph.
-- Inflated significance ("stands as a testament", "plays a crucial role").
-- Em dashes (use a plain dash), Title Case headings, bold-header bullet patterns, emoji as structure, curly quotes in plain-text media, exclamation-point enthusiasm.
+Do not preserve the source's structure merely because it is grammatically
+correct.
 
-Anything caught gets rewritten, not patched around.
+### 3. Rewrite from intent, not sentence-by-sentence
 
-### 4. Verify the mechanics
+Write the message again from the extracted intent.
 
-- Nothing invented: no fabricated names, numbers, links, or quotes that were not in the source text. If the original contains a claim that looks wrong, flag it rather than laundering it.
-- Facts, commitments, dates, and amounts from the original are all preserved.
-- Length is proportional to the ask; humanizing usually means shortening.
-- Emoji and exclamation points: zero by default, one at most.
-- No profanity. Clean grammar, except lowercase openings are fine in Slack/chat.
+Use:
 
-### 5. Deliver
+- the point early, usually in the first one or two sentences;
+- plain words unless domain jargon is more accurate;
+- concrete nouns and verbs;
+- sentence lengths that vary naturally;
+- transitions only where the reader actually needs one;
+- reasoning attached to opinions;
+- direct acknowledgment before disagreement or bad news;
+- contractions where they fit the medium;
+- occasional repetition when a human would naturally repeat the important
+  word instead of searching for a synonym.
 
-Output the rewritten text ready to copy-paste, with nothing above it except a one-line note only when something needs flagging (an assumption made, a claim that looks wrong, content deliberately cut).
-Do not annotate the rewrite with explanations of what changed unless he asks.
-If he gave a file path and asks for it in place, edit the file.
+A human draft is allowed to be slightly uneven. It should not look engineered
+for rhythm.
+
+### 4. Run the AI-smell pass
+
+Rewrite every detected instance of the following unless the source genuinely
+requires it:
+
+- stock AI vocabulary: `delve`, `pivotal`, `underscore`, `leverage`, `seamless`,
+  `robust`, `landscape`, `additionally`, `foster`, `nuanced`, `multifaceted`,
+  `transformative`, `comprehensive`, `holistic`, `realm`, `tapestry`;
+- inflated verbs and nouns where `is`, `has`, `uses`, `shows`, or `helps` is
+  accurate;
+- `not just X, but Y`, `it is not X, it is Y`, and reflexive contrast formulas;
+- `whether you're X or Y` audience padding;
+- `in today's fast-paced...` and other generic scene-setting;
+- `it's important to note`, `it's worth noting`, `that said`, and similar
+  throat-clearing;
+- trailing `-ing` clauses that explain significance after the sentence already
+  ended;
+- fake precision through unnecessary numbered frameworks;
+- adjective stacks and inflated significance;
+- rhetorical questions whose answer is obvious;
+- overuse of em dashes, semicolons, parentheses, bold text, title-case headings,
+  emoji, and exclamation points;
+- polished corporate filler such as `moving forward`, `align`, `unlock`,
+  `drive impact`, `at scale`, or `best-in-class` unless it is the precise term;
+- sycophancy, automatic agreement, and empty praise;
+- a closing sentence that announces the takeaway instead of ending naturally.
+
+Use a plain hyphen instead of an em dash in plain-text media unless the source
+requires typographic punctuation.
+
+### 5. Run the read-aloud test
+
+Read the rewrite as speech, not as prose on a screen.
+
+Fix any line that:
+
+- sounds like a presentation voice-over;
+- has too many balanced clauses;
+- contains several abstract nouns in a row;
+- would make the speaker pause in an unnatural place;
+- sounds more polished than the relationship or medium calls for;
+- explains something the audience already knows;
+- feels like it was written to impress rather than communicate.
+
+Do not make every sentence short. Choppy uniformity is another AI tell.
+
+### 6. Compress once
+
+Remove anything that does not change meaning, tone, or required context.
+
+Humanizing usually shortens the text. Do not shorten when the user explicitly
+needs detail, evidence, diplomacy, or a formal record.
+
+### 7. Final fidelity check
+
+Confirm:
+
+- no fact or commitment changed;
+- no content was invented;
+- the ask is explicit when an ask exists;
+- the first paragraph contains the real point;
+- the output fits the medium;
+- banned AI patterns are absent;
+- the result sounds like one person speaking to another, not a model presenting
+  an optimized answer.
+
+## Delivery
+
+Return only the rewritten, copy-ready text.
+
+Add one short note above it only when a factual concern, necessary assumption,
+or deliberate omission must be disclosed. Do not explain the editing process
+unless asked.
+
+When the user explicitly asks for in-place file editing, edit only the prose
+scope requested and preserve the rest of the file.
 
 ## Feedback loop
 
-When Manish says a rewrite does not sound like him, treat the correction as durable: update `~/.claude/VOICE.md` (and this skill, if the process itself was wrong) so the same miss cannot happen twice.
+When Manish says a rewrite still does not sound like him, identify the concrete
+miss. Update `~/.claude/VOICE.md` only when he explicitly asks to make that
+correction durable; do not silently mutate his canonical voice profile.
