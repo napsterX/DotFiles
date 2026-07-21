@@ -10,4 +10,5 @@ eval PR_LIGHT_$color='%{$fg[${(L)color}]%}'
  done
 PR_NO_COLOR="%{$terminfo[sgr0]%}"
 
+eval "$(/opt/homebrew/bin/direnv hook zsh)"
 source ~/.profile
