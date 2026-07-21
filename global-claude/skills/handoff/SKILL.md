@@ -200,4 +200,6 @@ Next Commands:
 ```
 
 Do not attempt to execute `/clear` yourself. Do not perform the next action in
-the same turn after publishing the handoff.
+the same turn after publishing the handoff. `/resume-handoff` only reloads and
+verifies this handoff, reports the reconstructed state, and waits for explicit
+user instructions; it never starts the task automatically.

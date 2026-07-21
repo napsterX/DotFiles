@@ -53,24 +53,42 @@ Testing Assessment:
 - Regression surface: COVERED / GAP / NOT APPLICABLE
 - Security/boundary behavior: COVERED / GAP / NOT APPLICABLE
 - Repository quality gates: COVERED / GAP / NOT APPLICABLE
+- Evidence plan:
+  - <required check and purpose>
 - Evidence reused:
   - <command/procedure and result>
 - Evidence rerun:
   - <command/procedure, result, and reason>
 - New validation executed:
   - <command/procedure, result, and gap closed>
+- Planned versus executed reconciliation:
+  - <planned check>: PASS / FAIL / UNAVAILABLE / NOT RUN / NOT APPLICABLE
 - Deliberately omitted:
   - <test/category and reason>
 - Unable to validate:
   - <required validation and reason>
-- CI enforcement:
-  - Required:
-  - Currently enforced: <or `NOT CONFIGURED — ACCEPTED REPOSITORY STATE` when the repository has no CI by design>
-  - Gap: <omit when accepted-no-CI>
-  - Automatic wiring eligibility:
-  - Branch-protection review required:
-- Confidence: HIGH / MODERATE / LOW
-- Confidence reason:
+
+Testing Confidence:
+- Level: HIGH / MODERATE / LOW
+- Reason:
+- Exact audited code state:
+- Material testing limitations: <details or NONE>
+
+CI Enforcement Confidence:
+- Level: HIGH / MODERATE / LOW / NOT_APPLICABLE
+- CI state: GREEN / RED / UNRESOLVED / NOT CONFIGURED — ACCEPTED REPOSITORY STATE / NOT YET OBSERVED
+- Required enforcement:
+- Currently enforced:
+- Documented repository-wide limitation: <details or NONE>
+- New change-specific enforcement gap: <details or NONE>
+- Automatic wiring eligibility:
+- Branch-protection review required:
+- Reason:
+
+Merge Eligibility:
+- Classification: AUTO_MERGE_ELIGIBLE / MANUAL_MERGE_REQUIRED / BLOCKED / PENDING_PR_AND_CI
+- Repository-policy reason:
+- This classification does not alter the independent audit verdict or testing confidence.
 
 Risk Assessment:
 LOW / MEDIUM / HIGH
@@ -89,5 +107,9 @@ Rules:
 - Write `NONE` for no audit-process notes.
 - Do not hide failed or unavailable validation.
 - Do not downgrade a testing stop condition.
+- Never use a CI architecture limitation as the reason for lowering testing
+  confidence when exact-HEAD ship evidence and all change-relevant high-risk
+  checks satisfy the evidence contract.
+- Report CI enforcement confidence and merge eligibility separately.
 - Do not include unrelated recommendations.
 - The follow-up prompt addresses only identified blockers or gaps.

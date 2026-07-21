@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Perform a read-only audit of the most recent implementation against its original request. Inspect changed behavior, diff, tests, documentation, security boundaries, regression risk, and CI enforcement; use minimal-sufficient-testing to assess evidence; then report PASS, PASS WITH GAPS, FAIL, or AUDIT BLOCKED.
+description: Perform a read-only audit against the original request, separating direct testing confidence, CI enforcement confidence, and merge eligibility while preserving independent findings and verdict authority.
 user-invocable: true
 ---
 
@@ -30,6 +30,8 @@ This skill owns:
 - CI-enforcement assessment
 - testing stop conditions
 - testing confidence
+- CI enforcement confidence
+- provisional merge-impact classification
 
 Invoke it in Validate mode for testing sufficiency.
 
@@ -139,6 +141,37 @@ Inspect applicable guidance:
 
 Apply only rules that actually exist.
 
+## Three independent decisions
+
+Never collapse these into one confidence label:
+
+- **Testing confidence** answers whether the audited implementation is directly
+  and sufficiently proven for the exact code state.
+- **CI enforcement confidence** answers whether required permanent checks are
+  durably enforced by the repository's CI architecture.
+- **Merge eligibility** answers whether current audit, verification, CI, review,
+  protection, and repository-specific policy permit automatic merge, require a
+  human merge, or block merge.
+
+A documented repository-wide CI coverage limitation must not reduce testing
+confidence when all of the following are true:
+
+- the authoritative `./scripts/verify ship --base <resolved-base>` gate passed
+  against the exact audited commit when the adapter exists;
+- the working tree remained clean;
+- no commit was added after that result;
+- every change-relevant high-risk check was directly executed and passed;
+- planned and executed evidence reconcile;
+- no material testing gap or conflicting result remains.
+
+Report the CI limitation separately. It may reduce CI enforcement confidence
+and may require manual merge under repository policy, but it is not a reason to
+mislabel directly proven code as Moderate or Low testing confidence.
+
+A CI failure or local-versus-CI disagreement can still reduce testing confidence
+when it creates an unresolved evidence conflict. That reduction is caused by the
+conflict, not by CI architecture alone.
+
 ## Review ten dimensions
 
 1. Original objective.
@@ -148,7 +181,7 @@ Apply only rules that actually exist.
 5. Unintended behavior changes.
 6. Duplication, dead code, shortcuts, weakened checks, accidental files.
 7. Security, privacy, auth, tenancy, data, payments, migrations, idempotency, and external boundaries.
-8. Testing sufficiency and CI enforcement through `minimal-sufficient-testing`.
+8. Testing sufficiency, CI enforcement confidence, and provisional merge impact through `minimal-sufficient-testing`.
 9. Documentation and contract updates.
 10. Regression, rollout, rollback, and assumption risk.
 
