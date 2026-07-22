@@ -50,6 +50,7 @@ class DecisionInputs:
     no_unaudited_commits: bool = True
     repository_policy_requires_manual_merge_for_ci_gap: bool = False
     repository_policy_explicitly_allows_auto_merge_with_ci_gap: bool = False
+    deferred_findings_tracking_complete: bool = True
 
 
 @dataclass(frozen=True)
@@ -129,6 +130,8 @@ def assess_decisions(inputs: DecisionInputs) -> DecisionResult:
         hard_blockers.append("repository protection does not permit merge")
     if not inputs.no_unaudited_commits:
         hard_blockers.append("an unaudited commit is present")
+    if not inputs.deferred_findings_tracking_complete:
+        hard_blockers.append("one or more confirmed P2/P3 findings lack equivalent open GitHub issues")
     if testing_confidence == "LOW":
         hard_blockers.append("testing confidence is LOW")
     if ci_confidence == "LOW":

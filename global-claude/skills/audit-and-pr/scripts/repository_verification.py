@@ -2,10 +2,10 @@
 """Safe Repository Verification V1 adapter runner for /audit-and-pr.
 
 The runner does not resolve policy on its own. The skill resolves the canonical
-base first and passes that exact value with ``--base``. This helper validates the
-resolved base, detects adapter state, invokes the adapter without a shell,
-captures evidence, detects contradictory success output, and terminates the
-adapter process group on timeout or interruption.
+base first. This helper detects adapter state and safely invokes the deterministic
+``doctor`` and ``fast`` preflight profiles or the final ``ship`` profile without a
+shell. It captures evidence, detects contradictory success output, and terminates
+the adapter process group on timeout or interruption.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable, Mapping, Optional, Sequence
 
+SUPPORTED_PROFILES = ("doctor", "fast", "ship")
 COUNT_NAMES = ("planned", "executed", "pass", "failure", "unavailable", "advisory")
 COUNT_PATTERNS = {
     name: re.compile(rf"(?im)^\s*{name}(?:\s+count)?\s*[:=]\s*(\d+)\b")
@@ -261,6 +262,7 @@ def run_repository_verification(
     repo: Path,
     base: str,
     *,
+    profile: str = "ship",
     timeout_seconds: float = 1800,
     changed_paths: Optional[Sequence[str]] = None,
     extra_env: Optional[Mapping[str, str]] = None,
@@ -268,20 +270,47 @@ def run_repository_verification(
     repo = repo.resolve()
     changed = list(changed_paths or [])
     adapter = repo / "scripts" / "verify"
-    command = [str(adapter), "ship", "--base", base]
-    display_command = " ".join(shlex.quote(part) for part in ["./scripts/verify", "ship", "--base", base])
     head_before = _git_head(repo)
     status_before = _git_status(repo)
     started = time.monotonic()
 
+    if profile not in SUPPORTED_PROFILES:
+        return VerificationResult(
+            repository=str(repo),
+            adapter="./scripts/verify",
+            profile=profile,
+            base=base,
+            invocation_head=head_before,
+            final_head=head_before,
+            command=[],
+            command_display="",
+            mode="adapter",
+            status="BLOCKED_INVOCATION",
+            adapter_exit_code=None,
+            effective_exit_code=2,
+            duration_seconds=0.0,
+            stdout="",
+            stderr="",
+            governance_sensitive=is_governance_sensitive(changed),
+            changed_paths=changed,
+            error=f"unsupported verification profile: {profile}",
+        )
+
+    relative_command = ["./scripts/verify", profile]
+    command = [str(adapter), profile]
+    if profile in {"fast", "ship"}:
+        relative_command.extend(["--base", base])
+        command.extend(["--base", base])
+    display_command = " ".join(shlex.quote(part) for part in relative_command)
+
     common = dict(
         repository=str(repo),
         adapter="./scripts/verify",
-        profile="ship",
+        profile=profile,
         base=base,
         invocation_head=head_before,
         final_head=head_before,
-        command=["./scripts/verify", "ship", "--base", base],
+        command=relative_command,
         command_display=display_command,
         duration_seconds=0.0,
         stdout="",
@@ -326,18 +355,19 @@ def run_repository_verification(
             error="./scripts/verify exists but is not executable",
         )
 
-    base_valid, base_detail = validate_base(repo, base)
-    if not base_valid:
-        return VerificationResult(
-            **common,
-            mode="adapter",
-            status="BLOCKED_BASE_RESOLUTION",
-            adapter_exit_code=None,
-            effective_exit_code=3,
-            adapter_present=True,
-            adapter_valid=True,
-            error=f"resolved base is invalid: {base_detail}",
-        )
+    if profile in {"fast", "ship"}:
+        base_valid, base_detail = validate_base(repo, base)
+        if not base_valid:
+            return VerificationResult(
+                **common,
+                mode="adapter",
+                status="BLOCKED_BASE_RESOLUTION",
+                adapter_exit_code=None,
+                effective_exit_code=3,
+                adapter_present=True,
+                adapter_valid=True,
+                error=f"resolved base is invalid: {base_detail}",
+            )
 
     env = os.environ.copy()
     if extra_env:
@@ -436,11 +466,11 @@ def run_repository_verification(
     return VerificationResult(
         repository=str(repo),
         adapter="./scripts/verify",
-        profile="ship",
+        profile=profile,
         base=base,
         invocation_head=head_before,
         final_head=head_after,
-        command=["./scripts/verify", "ship", "--base", base],
+        command=relative_command,
         command_display=display_command,
         mode="adapter",
         status=status_name,
@@ -462,11 +492,16 @@ def run_repository_verification(
         error=error,
     )
 
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--base", required=True)
+    parser.add_argument(
+        "--profile",
+        choices=SUPPORTED_PROFILES,
+        default="ship",
+        help="doctor or fast for preflight; ship for the final exact-HEAD gate",
+    )
     parser.add_argument(
         "--timeout-seconds",
         type=float,
@@ -487,6 +522,7 @@ def main() -> int:
     result = run_repository_verification(
         args.repo,
         args.base,
+        profile=args.profile,
         timeout_seconds=args.timeout_seconds,
         changed_paths=args.changed_path,
     )

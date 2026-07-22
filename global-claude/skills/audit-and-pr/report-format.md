@@ -17,26 +17,36 @@ Audited Scope:
 - Canonical base:
 - Merge-base:
 - Diff/range:
+- Initial HEAD:
+- Final audited HEAD:
 - Verification-governance-sensitive: YES / NO
 
-Repository Verification:
+Deterministic Preflight:
 - Adapter: ./scripts/verify / not present / invalid
-- Profile: ship / NOT_APPLICABLE
 - Validation mode: Repository Verification V1 / legacy audit workflow
-- Base: <resolved-base>
-- Initial HEAD: <sha>
-- Initial command: <exact command>
-- Initial result: exit <code> / NOT_APPLICABLE
-- Initial duration:
-- Initial planned/executed: <n>/<n> / not reported
-- Initial pass/failure/unavailable/advisory: <counts or not reported>
-- Post-remediation runs: <HEAD, command, result, duration, counts for each> / NONE
-- Final HEAD: <sha>
-- Final command: <exact command>
-- Final result: exit <code> / legacy result / NOT RUN
-- Status: PASS / NOT_APPLICABLE / BLOCKED_REQUIRED_CHECK / BLOCKED_INVOCATION / BLOCKED_ADAPTER / BLOCKED_CONFIGURATION / BLOCKED_ENVIRONMENT / BLOCKED_TIMEOUT / BLOCKED_INTERRUPTED / BLOCKED_PROTOCOL / BLOCKED_BASE_RESOLUTION
+- Doctor command: ./scripts/verify doctor / NOT_APPLICABLE
+- Doctor result: exit <code> / NOT_APPLICABLE / NOT RUN
+- Doctor duration:
+- Fast command: ./scripts/verify fast --base <resolved-base> / NOT_APPLICABLE
+- Fast result: exit <code> / NOT_APPLICABLE / SKIPPED
+- Fast skip reason: <reason> / NONE
+- Fast duration:
+- Fast planned/executed: <n>/<n> / not reported
+- Preflight status: PASS / NOT_APPLICABLE / BLOCKED_REQUIRED_CHECK / BLOCKED_INVOCATION / BLOCKED_ADAPTER / BLOCKED_CONFIGURATION / BLOCKED_ENVIRONMENT / BLOCKED_TIMEOUT / BLOCKED_INTERRUPTED / BLOCKED_PROTOCOL / BLOCKED_BASE_RESOLUTION
 - Contradictions: <details> / NONE
 - Output evidence: <concise diagnostic summary; preserve complete captured output in the working record>
+
+Parallel Audit Execution:
+- Requested mode: AUTO / SEQUENTIAL / PARALLEL
+- Actual mode: SEQUENTIAL / PARALLEL
+- Host concurrency available: YES / NO
+- Lane count:
+- Immutable packet HEAD/base/scope:
+- Lanes:
+  - <lane>: COMPLETE / FAILED / TIMED OUT / STALE
+- Synthesis conflicts resolved:
+- Read-only integrity preserved: YES / NO
+- Reason for lane plan:
 
 Evidence Contract:
 - Planned checks:
@@ -44,8 +54,6 @@ Evidence Contract:
 - Planned versus executed:
   - <check>: PASS / FAIL / UNAVAILABLE / NOT RUN / NOT APPLICABLE
 - Exact audited code state:
-- Working tree clean after final gate: YES / NO
-- Commit added after final gate: YES / NO
 - Change-relevant high-risk checks directly executed: YES / NO / NOT APPLICABLE
 - Reconciliation status: COMPLETE / INCOMPLETE / BLOCKED
 
@@ -54,9 +62,45 @@ Final Independent Audit:
 - Risk:
 - P0 remaining:
 - P1 remaining:
-- P2 remaining:
-- P3 remaining:
-- Why Repository Verification was or was not sufficient evidence:
+- P2 deferred — code unchanged:
+- P3 deferred — code unchanged:
+- Objective-required finding incorrectly classified as P2/P3: YES / NO
+- Why deterministic verification was or was not sufficient evidence:
+
+Finding Disposition:
+- P0/P1 remediation candidates:
+- P0/P1 blockers not safely remediable:
+- Confirmed P2/P3 excluded from remediation:
+- Audit-process notes excluded from ticketing:
+- Severity downgrades used to avoid remediation: NONE / <blocker>
+
+Remediation:
+- Eligible priorities: P0 / P1 only
+- Rounds used:
+- Single writer: YES / NO
+- Retained P0/P1 fixes:
+  - <finding, original priority, change, targeted validation, optional fast rerun, re-audit>
+- Deferred P2/P3 code modifications: NONE / <blocker>
+- Reverted attempts:
+- Post-remediation fast runs: <HEAD, command, result, reason> / NONE
+
+Final Repository Verification:
+- Adapter: ./scripts/verify / not present / invalid
+- Profile: ship / NOT_APPLICABLE
+- Validation mode: Repository Verification V1 / legacy audit workflow
+- Base: <resolved-base>
+- Final committed HEAD: <sha>
+- Command: ./scripts/verify ship --base <resolved-base> / legacy command
+- Result: exit <code> / legacy result / NOT RUN
+- Duration:
+- Planned/executed: <n>/<n> / not reported
+- Pass/failure/unavailable/advisory: <counts or not reported>
+- Working tree clean after final gate: YES / NO
+- HEAD unchanged through final gate: YES / NO
+- Commit added after final gate: YES / NO
+- Status: PASS / NOT_APPLICABLE / BLOCKED_REQUIRED_CHECK / BLOCKED_INVOCATION / BLOCKED_ADAPTER / BLOCKED_CONFIGURATION / BLOCKED_ENVIRONMENT / BLOCKED_TIMEOUT / BLOCKED_INTERRUPTED / BLOCKED_PROTOCOL / BLOCKED_BASE_RESOLUTION
+- Contradictions: <details> / NONE
+- Output evidence: <concise diagnostic summary; preserve complete captured output in the working record>
 
 Testing Confidence:
 - Level: HIGH / MODERATE / LOW
@@ -76,10 +120,6 @@ Merge Eligibility:
 - Repository-policy reason:
 - Live gate reason:
 
-Auto-fixes:
-- <retained fix and targeted validation, evidence reconciliation, verification rerun, re-audit>
-- NONE
-
 Testing:
 - Reused:
 - Rerun:
@@ -87,10 +127,17 @@ Testing:
 - Deliberately omitted:
 - Unable to validate:
 
-Tracking:
-- <finding and issue>
-- <finding retained in PR only>
-- Unavailable: <reason>
+Deferred Finding Tracking:
+- Status: COMPLETE / NOT_APPLICABLE / TRACKING BLOCKED
+- Confirmed P2/P3 findings:
+- Findings mapped to equivalent open issues:
+- Reused open issues:
+- Newly created issues:
+- Grouped P3 mappings:
+- Findings:
+  - <finding ID, priority, code unchanged, issue URL, reused/new>
+- Untracked findings: NONE / <finding and reason>
+- GitHub unavailable or issue creation failure: NONE / <reason>
 
 Git:
 - Branch:
@@ -122,7 +169,8 @@ Outcome:
 - PR OPEN — MANUAL REVIEW REQUIRED
 - PR OPEN — CI FAILED
 - PR OPEN — CI UNRESOLVED
-- REPOSITORY VERIFICATION BLOCKED
+- TRACKING BLOCKED — BRANCH PUSHED, PR NOT MUTATED
+- PREFLIGHT BLOCKED
 - FINAL VERIFICATION FAILED — LOCAL COMMIT RETAINED
 - SHIPMENT BLOCKED
 - AUDIT BLOCKED
@@ -134,57 +182,77 @@ Smallest Safe Follow-up Prompt:
 <include when additional work is required>
 ```
 
-Keep Repository Verification, evidence reconciliation, independent audit,
-testing confidence, CI enforcement confidence, CI result, PR state, merge
-eligibility, and merge result separate. Never collapse the result into “tests
-passed” or imply exit `0` is audit approval.
+Keep deterministic preflight, parallel audit execution, evidence
+reconciliation, finding disposition, deferred-finding tracking, final Repository
+Verification, independent audit, testing confidence, CI enforcement confidence,
+CI result, PR state, merge eligibility, and merge result separate. Never collapse the result into “tests passed” or
+imply any adapter exit `0` is audit approval.
 
 A documented repository-wide CI coverage limitation must not lower testing
-confidence when the exact audited commit passed the applicable ship gate, the
-working tree stayed clean, no commit followed, all change-relevant high-risk
+confidence when the exact audited commit passed the applicable final ship gate,
+the working tree stayed clean, no commit followed, all change-relevant high-risk
 checks were directly executed, and planned versus executed evidence reconciles.
 Report the limitation under CI Enforcement Confidence and its effect under Merge
 Eligibility.
 
+
+If deferred-finding tracking blocks, state explicitly:
+
+- the final exact-HEAD repository gate passed before remote tracking began;
+- whether the branch was pushed;
+- no PR was created or updated after tracking failed;
+- no merge was attempted;
+- every confirmed P2/P3 still lacking an equivalent open issue;
+- GitHub search or creation failure evidence without exposing credentials;
+- that P2/P3 code remained unchanged.
+
 ## Adapter-present example
 
 ```text
-Repository Verification:
+Deterministic Preflight:
+- Adapter: ./scripts/verify
+- Validation mode: Repository Verification V1
+- Doctor command: ./scripts/verify doctor
+- Doctor result: exit 0
+- Fast command: ./scripts/verify fast --base origin/main
+- Fast result: exit 0
+- Preflight status: PASS
+
+Parallel Audit Execution:
+- Requested mode: AUTO
+- Actual mode: PARALLEL
+- Lane count: 3
+- Immutable packet HEAD/base/scope: <sha> / origin/main / <range>
+- Lanes: correctness-behavior PASS; security-data-boundaries PASS; architecture-evidence-operations PASS
+- Read-only integrity preserved: YES
+
+Final Repository Verification:
 - Adapter: ./scripts/verify
 - Profile: ship
-- Validation mode: Repository Verification V1
 - Base: origin/main
-- Initial HEAD: <sha>
-- Initial command: ./scripts/verify ship --base origin/main
-- Initial result: exit 0
-- Initial planned/executed: 19/19
-- Post-remediation runs: <sha> — exit 0
-- Final HEAD: <sha>
-- Final result: exit 0
+- Final committed HEAD: <sha>
+- Command: ./scripts/verify ship --base origin/main
+- Result: exit 0
+- Planned/executed: 19/19
+- Working tree clean after final gate: YES
+- HEAD unchanged through final gate: YES
 - Status: PASS
-
-Testing Confidence:
-- Level: HIGH
-- Reason: all change-relevant high-risk checks passed for the exact audited commit
-
-CI Enforcement Confidence:
-- Level: MODERATE
-- Documented repository-wide limitation: Docker-backed integration suite is local-only
-
-Merge Eligibility:
-- Classification: MANUAL_MERGE_REQUIRED
-- Repository-policy reason: manual merge required for the accepted CI coverage limitation
 ```
 
 ## Adapter-absent example
 
 ```text
-Repository Verification:
+Deterministic Preflight:
+- Adapter: not present
+- Validation mode: legacy audit workflow
+- Doctor result: NOT_APPLICABLE
+- Fast result: NOT_APPLICABLE
+- Preflight status: NOT_APPLICABLE
+
+Final Repository Verification:
 - Adapter: not present
 - Profile: NOT_APPLICABLE
 - Validation mode: legacy audit workflow
-- Base: origin/develop
-- Initial result: NOT_APPLICABLE
 - Final result: legacy validation passed
 - Status: NOT_APPLICABLE
 ```
@@ -192,21 +260,19 @@ Repository Verification:
 ## Environment-blocker example
 
 ```text
-Repository Verification:
+Deterministic Preflight:
 - Adapter: ./scripts/verify
-- Profile: ship
-- Base: origin/main
-- Initial result: exit 4
-- Status: BLOCKED_ENVIRONMENT
+- Doctor result: exit 4
+- Preflight status: BLOCKED_ENVIRONMENT
 - Missing requirements: <names only>
 ```
 
-If initial Repository Verification blocks, state explicitly:
+If preflight blocks, state explicitly:
 
-- independent audit did not begin;
+- the deep independent audit did not begin;
 - nothing was modified, committed, pushed, tracked, or merged by this workflow;
 - the base, exact command, exit mapping, duration, and diagnostic output;
-- legacy fallback was not used.
+- legacy fallback was not used for a present adapter.
 
 If audit eligibility was blocked, state explicitly:
 
@@ -222,10 +288,11 @@ If final exact-HEAD verification failed, state explicitly:
 - nothing was pushed after the failed gate;
 - no tracking issues were filed after the failed gate;
 - no PR was opened or updated after the failed gate;
-- the exact base, command, exit mapping, contradiction, timeout/interruption, or tree-change evidence.
+- the exact base, command, exit mapping, contradiction, timeout/interruption, or
+  tree-change evidence.
 
 If a PR is open but unmerged, state exactly why automatic merge was not
 permitted.
 
-If merge succeeded but cleanup was incomplete, do not call the full workflow
-clean. Name every branch or working-tree condition left behind.
+If merge succeeded but cleanup was incomplete, do not call the workflow clean.
+Name every branch or working-tree condition left behind.
