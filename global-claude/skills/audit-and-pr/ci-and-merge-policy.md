@@ -77,7 +77,8 @@ Keep these fields separate through the entire PR phase:
 
 - `testing_confidence`: HIGH / MODERATE / LOW;
 - `ci_enforcement_confidence`: HIGH / MODERATE / LOW / NOT_APPLICABLE;
-- `merge_eligibility`: AUTO_MERGE_ELIGIBLE / MANUAL_MERGE_REQUIRED / BLOCKED.
+- `merge_eligibility`: AUTO_MERGE_ELIGIBLE / MANUAL_MERGE_REQUIRED / BLOCKED;
+- `deferred_findings_tracking`: COMPLETE / NOT_APPLICABLE / TRACKING BLOCKED.
 
 A documented repository-wide CI coverage limitation does not lower testing
 confidence when the exact audited commit passed the authoritative ship gate and
@@ -102,7 +103,9 @@ Automatic merge requires all:
 - no required review missing;
 - protection allows merge without bypass;
 - no unaudited commits appeared;
-- no P0/P1 remains.
+- no P0/P1 remains;
+- deferred-finding tracking is COMPLETE or NOT_APPLICABLE, with every confirmed
+  P2/P3 mapped to an equivalent open GitHub issue.
 
 Immediately before merge, confirm the PR head SHA still equals the SHA that
 passed `./scripts/verify ship --base <resolved-base>` when the adapter is present, or the final legacy validation when absent. If it differs, stop and restart from audit of the
@@ -173,6 +176,10 @@ Never:
 - substitute your own approval.
 
 If merge fails because repository controls block it, report and stop.
+
+If deferred-finding tracking is incomplete, merge is blocked independently of
+CI, review, and protection state. Do not treat a green PR as permission to merge
+while a confirmed P2/P3 lacks an open issue link.
 
 ## Merge method
 

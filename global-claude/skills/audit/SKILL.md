@@ -52,11 +52,36 @@ Use conversation context as the first objective source. Ask only when the object
 
 ### Parent-skill
 
-Use when invoked by `audit-and-pr` or another orchestrator.
+Use when invoked by `audit-and-pr` or another orchestrator as the authoritative
+integrated audit or synthesis lead.
 
-The parent should supply repository, branch, scope, objective, prior evidence, and previous findings when relevant.
+The parent should supply repository, branch, scope, objective, prior evidence,
+parallel-lane results when present, and previous findings when relevant.
 
-Do not ask the user in this mode. Return `AUDIT BLOCKED` if essential context remains unavailable.
+Do not ask the user in this mode. Return `AUDIT BLOCKED` if essential context
+remains unavailable.
+
+### Parent-lane
+
+Use only when `audit-and-pr` assigns one read-only parallel audit lane.
+
+The parent must supply the immutable audit packet, exact HEAD, canonical base,
+merge-base, audited scope, assigned dimensions, and evidence seed. Review only
+the assigned dimensions deeply enough to detect cross-boundary defects. Do not
+modify files, run broad duplicate test suites, remediate, or issue the final
+audit verdict.
+
+Return:
+
+- exact HEAD, base, and scope reviewed;
+- assigned dimensions completed;
+- findings with priority and direct evidence;
+- missing evidence obligations;
+- uncertainties or conflicts;
+- confirmation that no repository mutation was performed.
+
+The parent synthesis lead owns deduplication, conflict resolution, P0/P1 direct
+verification, evidence reconciliation, and the single authoritative verdict.
 
 ## Read-only rules
 
@@ -195,6 +220,11 @@ If required validation is unavailable, preserve that limitation in the testing a
 
 ## Output
 
-Return the format defined in `report-format.md`.
+Standalone and Parent-skill modes return the format defined in
+`report-format.md`.
 
-Do not emit a long running monologue. A parent skill may provide concise milestone updates.
+Parent-lane mode returns the lane contract above and must not emit a competing
+final verdict.
+
+Do not emit a long running monologue. A parent skill may provide concise
+milestone updates.
