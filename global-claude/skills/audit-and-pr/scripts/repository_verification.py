@@ -222,25 +222,38 @@ def repository_verification_allows_shipment(
 
 
 def _terminate_process_group(process: subprocess.Popen[str]) -> None:
-    if process.poll() is not None:
-        return
+    """Terminate the adapter and any descendants without trusting parent exit.
+
+    A child can keep inherited stdout/stderr pipes open after the adapter parent
+    exits. Always signal the session process group, then issue a final SIGKILL to
+    any surviving group members before returning.
+    """
+
+    group_id = process.pid
     try:
-        os.killpg(process.pid, signal.SIGTERM)
+        os.killpg(group_id, signal.SIGTERM)
     except ProcessLookupError:
-        return
+        pass
     except PermissionError:
-        process.terminate()
+        if process.poll() is None:
+            process.terminate()
+
     try:
         process.wait(timeout=2)
-        return
     except subprocess.TimeoutExpired:
         pass
+
+    # Do not return merely because the direct adapter process exited. A
+    # descendant may still own the capture pipes and would make communicate()
+    # block indefinitely.
     try:
-        os.killpg(process.pid, signal.SIGKILL)
+        os.killpg(group_id, signal.SIGKILL)
     except ProcessLookupError:
-        return
+        pass
     except PermissionError:
-        process.kill()
+        if process.poll() is None:
+            process.kill()
+
     try:
         process.wait(timeout=2)
     except subprocess.TimeoutExpired:
@@ -408,12 +421,25 @@ def run_repository_verification(
     try:
         stdout, stderr = process.communicate(timeout=timeout_seconds)
         exit_code = process.returncode
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         timed_out = True
         _terminate_process_group(process)
-        stdout, stderr = process.communicate()
-        stdout = stdout or ""
-        stderr = stderr or ""
+        partial_out = exc.stdout or ""
+        partial_err = exc.stderr or ""
+        try:
+            tail_out, tail_err = process.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            _terminate_process_group(process)
+            # Never let output capture deadlock shipment after a timeout. Close
+            # local pipe handles after preserving the partial output exposed by
+            # TimeoutExpired.
+            if process.stdout is not None:
+                process.stdout.close()
+            if process.stderr is not None:
+                process.stderr.close()
+            tail_out, tail_err = "", ""
+        stdout = f"{partial_out}{tail_out or ''}"
+        stderr = f"{partial_err}{tail_err or ''}"
         exit_code = 5
     except KeyboardInterrupt:
         interrupted = True

@@ -47,8 +47,9 @@ After the scoped commit:
 - stop on any invalid adapter, failure, contradiction, timeout, interruption,
   HEAD change, or post-run tree change.
 
-The Push, Track deferred findings, Existing PR, and New PR sections below are
-forbidden until the applicable final gate passes for the exact current `HEAD`.
+The Push, Track deferred findings, PR change summary, Existing PR, and New PR
+sections below are forbidden until the applicable final gate passes for the exact
+current `HEAD`.
 
 ## Push
 
@@ -141,12 +142,33 @@ any confirmed P2/P3 remains without an open issue link:
 
 Do not change code merely because issue creation is unavailable.
 
+## PR change summary
+
+Follow `pr-change-summary-policy.md` after deferred-finding tracking completes or
+is not applicable.
+
+Generate the managed PR change-summary block from the final audited diff and
+exact verified HEAD. Include concrete Added, Changed, Fixed, and Removed entries;
+user-facing impact; explicit breaking changes when present; and open issue links
+for every deferred P2/P3 finding.
+
+Do not use commit messages as the sole source. Do not include unsupported claims,
+secrets, private service details, customer data, or sensitive exploit guidance.
+Do not describe deferred work as fixed.
+
+Detect an existing permanent changelog convention, but do not invent one. The
+presence of `CHANGELOG.md` alone does not authorize editing it. Required tracked
+changelog artifacts must be completed, audited, committed, and verified before
+the final gate; otherwise shipment is blocked.
+
 ## Existing PR
 
 Do not create a duplicate.
 
 Update the body only after the deferred-finding tracking gate completes. Preserve
-useful existing context.
+useful existing context outside the managed markers. Replace the one existing
+managed change-summary block. If markers are duplicate or unmatched, stop rather
+than risking destructive PR-body edits.
 
 ## New PR
 
@@ -164,7 +186,9 @@ Create the PR only after the deferred-finding tracking gate completes.
 
 Include:
 
-- summary of behavioral changes;
+- final-diff managed change summary, including only non-empty Added, Changed,
+  Fixed, and Removed categories;
+- user-facing impact and explicit breaking or operator actions when applicable;
 - motivation;
 - requirement coverage;
 - impact and risk;
@@ -182,6 +206,7 @@ Include:
 - final Repository Verification adapter/mode, explicit base, command, and result;
 - exact committed SHA validated by the final gate;
 - each deferred P2/P3 finding and its open GitHub issue link;
+- permanent changelog convention and artifact status when applicable;
 - rollback;
 - repository-specific metadata.
 

@@ -1,6 +1,6 @@
 ---
 name: audit-and-pr
-description: Run lightweight deterministic preflight, perform an independent risk-adaptive parallel audit, remediate only eligible P0/P1 blockers, defer every confirmed P2/P3 to GitHub tracking, validate the final committed HEAD with the repository ship gate, then execute the existing PR, CI, merge, and safe post-merge cleanup policies.
+description: Run lightweight deterministic preflight, perform an independent risk-adaptive parallel audit, remediate only eligible P0/P1 blockers, defer every confirmed P2/P3 to GitHub tracking, validate the final committed HEAD, generate a final-diff PR change summary, then execute the existing PR, CI, merge, and safe post-merge cleanup policies.
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -30,6 +30,7 @@ Read:
 - `remediation-policy.md`
 - `shipping-gate.md`
 - `github-and-pr-policy.md`
+- `pr-change-summary-policy.md`
 - `ci-and-merge-policy.md`
 - `report-format.md`
 
@@ -42,7 +43,9 @@ Executable references when helpers are supported:
 - `scripts/shipping_decision.py` — separation of testing confidence, CI
   enforcement confidence, deferred-finding tracking, and merge eligibility;
 - `scripts/finding_disposition.py` — severity-driven remediation and mandatory
-  GitHub tracking decisions for confirmed P2/P3 findings.
+  GitHub tracking decisions for confirmed P2/P3 findings;
+- `scripts/pr_change_summary.py` — deterministic managed PR-summary rendering,
+  safe existing-body replacement, and permanent-changelog action decisions.
 
 ## Core guarantees
 
@@ -72,6 +75,12 @@ Never:
 - collapse testing confidence, CI enforcement confidence, and merge eligibility
   into one status;
 - turn audit-process notes into repository issues;
+- generate a PR change summary from an earlier or unaudited HEAD;
+- list deferred P2/P3 findings as fixed or omit their open issue links;
+- overwrite user-authored PR content outside the managed change-summary block;
+- invent or automatically introduce a permanent repository changelog convention;
+- expose secrets, private service details, customer data, or sensitive exploit
+  instructions in the PR summary;
 - push or create/update a PR before the final exact committed HEAD satisfies the
   applicable repository-verification or legacy shipping gate;
 - merge through failed, cancelled, unresolved, or bypassed checks;
@@ -96,7 +105,9 @@ Provide concise milestone updates:
 7. Audit eligibility gate cleared or blocked.
 8. Final exact-HEAD ship or legacy verification passed or failed.
 9. Deferred P2/P3 GitHub tracking completed or blocked.
-10. PR, CI, merge, and cleanup outcome determined.
+10. Final-diff PR change summary and any required repository changelog artifact
+    completed or blocked.
+11. PR, CI, merge, and cleanup outcome determined.
 
 Do not narrate every checklist item.
 
@@ -142,7 +153,8 @@ Determine:
 - unrelated pre-existing changes;
 - existing PR and target branch;
 - original objective;
-- linked issue or ticket.
+- linked issue or ticket;
+- repository PR template and permanent changelog or fragment convention.
 
 Objective source order:
 
@@ -358,7 +370,9 @@ If the final gate fails:
 - retain the local commit and report the failure.
 
 Read-only PR-body and report drafting may overlap with the final ship command,
-but no remote or repository mutation may occur until the gate passes.
+but no remote or repository mutation may occur until the gate passes. Any draft
+is provisional until it is regenerated or confirmed against the final verified
+HEAD and completed deferred-finding ledger.
 
 ## Deferred-finding tracking, GitHub, and PR
 
@@ -377,6 +391,33 @@ tracking gate before creating or updating a PR or merging:
 
 Do not let individual parallel lanes create issues. The authoritative synthesis
 owns deduplication, issue equivalence, and the final tracking ledger.
+
+## Final-diff PR change summary
+
+Follow `pr-change-summary-policy.md` after deferred-finding tracking is complete
+or not applicable and before creating or updating the PR.
+
+1. Generate one managed `Change summary` block from the final audited diff,
+   objective, tests, retained P0/P1 remediation, and exact verified HEAD.
+2. Categorize concrete changes as Added, Changed, Fixed, or Removed and omit empty
+   categories.
+3. State user-facing impact explicitly. Add a distinct Breaking changes section
+   only when migration, deployment, configuration, API, schema, compatibility, or
+   rollback action is required.
+4. Include every confirmed deferred P2/P3 with its equivalent open GitHub issue
+   link. Never describe deferred work as fixed.
+5. Preserve repository-template and user-authored PR content outside the managed
+   markers. Replace the existing managed block when updating a PR; block on
+   duplicate or unmatched markers.
+6. Regenerate the block whenever the final audited HEAD changes.
+7. Detect permanent changelog conventions conservatively. Use PR-body summary
+   only when no repository requirement applies. Validate or create a permanent
+   artifact only under explicit, deterministic repository policy; otherwise
+   block with the exact manual action rather than inventing a convention.
+
+Any required tracked changelog artifact must enter audited scope before the final
+commit and ship gate. A tracked edit after final verification invalidates that
+verification.
 
 ## CI, merge, and cleanup
 
@@ -401,5 +442,6 @@ preserve unrelated work.
 ## Final report
 
 Use `report-format.md`. Keep preflight, parallel audit execution, evidence
-reconciliation, final Repository Verification, independent audit, testing, CI,
-PR, merge, and cleanup as separate sections.
+reconciliation, final Repository Verification, independent audit, PR change
+summary and permanent changelog handling, testing, CI, PR, merge, and cleanup as
+separate sections.

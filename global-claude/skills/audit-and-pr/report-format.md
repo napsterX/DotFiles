@@ -139,6 +139,19 @@ Deferred Finding Tracking:
 - Untracked findings: NONE / <finding and reason>
 - GitHub unavailable or issue creation failure: NONE / <reason>
 
+PR Change Summary:
+- Source HEAD:
+- Managed block action: CREATED / REPLACED / UNCHANGED / BLOCKED
+- Included categories: Added / Changed / Fixed / Removed / NONE
+- User-facing impact: PRESENT / NO_EXTERNAL_CHANGE
+- Breaking changes: PRESENT / NONE
+- Deferred issue links included: <count>
+- Existing PR content preserved outside managed block: YES / NO / NOT_APPLICABLE
+- Permanent changelog convention: NONE / CHANGELOG_FILE / CHANGESETS / TOWNCRIER / CUSTOM_FRAGMENT
+- Permanent artifact action: PR_BODY_ONLY / VALIDATE_EXISTING / CREATE_REQUIRED_ARTIFACT / BLOCKED
+- Permanent artifact validation: PASS / FAIL / NOT_APPLICABLE
+- Summary status: READY / BLOCKED_STALE_HEAD / BLOCKED_MARKERS / BLOCKED_SENSITIVE_CONTENT / BLOCKED_CHANGELOG
+
 Git:
 - Branch:
 - Commits:
