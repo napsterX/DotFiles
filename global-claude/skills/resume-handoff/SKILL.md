@@ -2,7 +2,6 @@
 name: resume-handoff
 description: Locate and verify the current operational handoff, reconstruct the active task and current repository state, report material drift, then stop and wait for explicit user instructions. Never starts or continues implementation.
 argument-hint: ""
-disable-model-invocation: true
 user-invocable: true
 model: opus
 effort: high
