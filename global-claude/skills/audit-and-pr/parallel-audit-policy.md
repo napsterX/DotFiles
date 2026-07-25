@@ -171,7 +171,9 @@ state or outputs. Otherwise execute them sequentially.
 ## Final-gate overlap
 
 While final `ship --base <resolved-base>` runs, read-only drafting may prepare a
-PR body and final report skeleton from already-audited evidence. Do not push,
+PR body, managed change-summary draft, and final report skeleton from
+already-audited evidence. Treat the summary as provisional until the final HEAD
+and deferred-finding issue ledger are fixed. Do not push,
 create or update a PR, file deferred-finding issues, merge, or clean branches
 until the final gate passes for the exact committed SHA. After the gate, issue
 search, deduplication, and creation remain centralized; parallel lanes never
