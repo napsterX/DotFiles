@@ -2,21 +2,24 @@
 
 ## Handoff Metadata
 
-- Schema version: 1
+- Schema version: 2
 - Generated at: `<UTC timestamp>`
 - Session ID: `<session id>`
 - Label: `<label or none>`
-- Project root: `<absolute path>`
+- Handoff ID: `<filled by publication receipt>`
+- Invocation directory: `<absolute canonical path>`
+- Repository family: `<canonical git common-dir identity>`
+- Active task worktree: `<absolute canonical path>`
 - Project key: `<derived key>`
-- Working directory: `<absolute path>`
 - Branch: `<branch or not applicable>`
 - HEAD: `<full SHA or not applicable>`
+- Previous handoff ID: `<id or none>`
 
 ## Resume Contract
 
-The next session must read current project instructions, verify this handoff
-against repository and filesystem state, classify any drift, and continue only
-when the documented next action remains valid.
+Locate the exact latest verified handoff for this repository family, validate its
+identity and content digest, compare it with the recorded active task worktree,
+report drift, and stop for user instructions.
 
 ## Active Objective
 
@@ -33,6 +36,10 @@ when the documented next action remains valid.
 ## Verified Repository and Filesystem State
 
 - `[VERIFIED] <state>`
+
+## Changes Since Previous Handoff
+
+- `[VERIFIED] <commit/change/task transition accounted for, or none>`
 
 ## Completed Work
 
@@ -77,7 +84,6 @@ when the documented next action remains valid.
 ## Subsequent Actions
 
 1. `<next ordered action>`
-2. `<next ordered action>`
 
 ## Relevant Files to Read First
 
@@ -86,8 +92,3 @@ when the documented next action remains valid.
 ## Deferred Context
 
 - `<unfinished but intentionally out-of-scope thread, or none>`
-
-## Context That Must Not Be Carried Forward
-
-- Superseded discussion, duplicate explanations, completed exploration, and
-  verbose logs that do not affect the active objective.

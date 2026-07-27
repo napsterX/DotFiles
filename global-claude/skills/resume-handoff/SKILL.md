@@ -1,6 +1,6 @@
 ---
 name: resume-handoff
-description: Locate and verify the current operational handoff, reconstruct the active task and current repository state, report material drift, then stop and wait for explicit user instructions. Never starts or continues implementation.
+description: Locate and verify the exact latest operational handoff for the current repository family, reconstruct context, report selection or freshness failures, then stop and wait for explicit user instructions.
 argument-hint: ""
 user-invocable: true
 model: opus
@@ -9,39 +9,24 @@ effort: high
 
 # Resume Handoff
 
-Restore verified context from the current handoff, present the reconstructed
-state, and stop.
+Load verified context only. Never execute the handoff's next action, modify files, run
+validation, or make Git/GitHub changes.
 
-This skill is a context-loading operation only. It must never execute the
-handoff's next action, resume implementation, run validation, modify files, or
-make Git/GitHub changes.
-
-Read [references/resume-verification.md](references/resume-verification.md)
-before loading the handoff.
-
-This skill accepts no mode or continuation argument. If `$ARGUMENTS` is not
-empty, ignore it only when it is a harmless label; otherwise state that
-`/resume-handoff` always loads context and waits for instructions.
+Read [references/resume-verification.md](references/resume-verification.md).
 
 ## Hard stop contract
 
-After reading and reporting, return control to the user.
-
-Never:
-
-- edit implementation, test, configuration, documentation, or handoff files;
-- execute the documented next action;
-- run tests, builds, linters, migrations, servers, or repository verification;
-- create, switch, merge, delete, commit, or push branches;
-- create or update issues or pull requests;
-- continue automatically because the handoff appears valid;
-- treat the handoff as permission to act.
-
-Read-only commands needed to establish current state are allowed.
+Read-only inspection is allowed. Implementation, tests, builds, migrations,
+repository verification, process changes, Git mutations, GitHub mutations, and
+automatic continuation are prohibited.
 
 ## Procedure
 
-### 1. Locate the handoff
+### 1. Resolve the repository family and candidate task worktree
+
+Do not assume `$PWD` identifies the worktree recorded by the handoff. Use the
+current directory only to identify the repository family. The published metadata
+must identify the actual task worktree.
 
 Run:
 
@@ -51,78 +36,88 @@ python3 "$HOME/.claude/session-continuity/bin/session_state.py" locate \
   --kind handoff
 ```
 
-If no current handoff exists, stop. Do not scan unrelated repositories or guess
-which previous session the user meant.
+The command must validate current/archive hashes, sidecar identity, and the latest
+pointer before returning a handoff. If it fails, report metadata or selection
+failure; do not search arbitrary old handoffs and pretend recovery succeeded.
 
-### 2. Read current authority before trusting the handoff
+### 2. Read identity before narrative
 
-Read:
+Capture and report:
 
-- applicable project instructions;
-- the handoff and its metadata sidecar;
-- authoritative task and architecture files named in the handoff;
-- changed files named in the handoff;
-- current repository state returned by a fresh read-only `collect` command.
+- handoff ID and generated time;
+- source session ID;
+- selection method;
+- repository family;
+- recorded active task worktree;
+- recorded branch and HEAD;
+- current invocation directory and current worktree;
+- content hash;
+- helper freshness classification.
 
-Run:
+Read the returned handoff and metadata. Then collect fresh state against the
+**recorded active task worktree**, not blindly against `$PWD`:
 
 ```bash
 python3 "$HOME/.claude/session-continuity/bin/session_state.py" collect \
-  --cwd "$PWD" \
+  --cwd "<recorded-active-worktree>" \
   --session-id "${CLAUDE_SESSION_ID}"
 ```
 
-Do not run any command whose purpose is to validate or advance the task.
+If the recorded worktree no longer exists, classify the handoff as
+`WORKTREE_UNAVAILABLE` and stop after reporting context.
 
-### 3. Verify material claims
+### 3. Distinguish publication/selection failure from later drift
 
-Compare at minimum:
+Compare handoff identity and current state.
 
-- canonical project root and project key;
-- branch and HEAD;
-- staged, unstaged, and untracked files;
-- named changed files and their current contents;
-- task objective and requirements;
-- decisions and invariants;
-- recorded validation evidence and whether later edits invalidate it;
-- blockers and runtime state;
-- whether the documented next action is still pending.
+Classifications:
 
-Classify each material difference as:
+- **CURRENT** — exact handoff selected; recorded task worktree, branch, HEAD, and
+  material status still agree.
+- **EXPECTED_DRIFT** — explicitly predicted change does not invalidate context.
+- **MATERIAL_DRIFT** — the handoff was valid but current state later changed.
+- **SELECTION_MISMATCH** — located artifact is not the latest published ID or
+  points to the wrong task worktree.
+- **INVALID_AT_PUBLICATION** — recorded claims were already inconsistent with the
+  publication snapshot or omitted work that existed before publication.
+- **METADATA_INVALID** — pointer, sidecar, archive, or digest mismatch.
+- **UNVERIFIABLE** — required evidence is unavailable.
 
-- **NO DRIFT** — current state agrees;
-- **EXPECTED DRIFT** — explicitly predicted state changed as expected;
-- **MATERIAL DRIFT** — current state can invalidate the handoff;
-- **UNVERIFIABLE** — evidence is unavailable.
+Do not infer that another session changed the repository merely because HEAD
+differs. Use timestamps, publication metadata, and commit times. When the cause
+cannot be proven, say so.
 
-### 4. Reconstruct working context
+### 4. Reconstruct context without masking failure
 
-Produce a concise summary containing:
+Read applicable project instructions and named authoritative files. An
+implementation log or issue comment may be used as supplemental recovery
+evidence, but it does not convert a failed handoff into a successful recovery.
+State explicitly:
 
-- active objective;
-- definition of done;
-- current verified state;
-- applicable constraints and invariants;
-- completed work;
-- remaining work;
-- recorded validation and its current applicability;
-- material drift or unverifiable claims;
-- blockers and risks;
-- documented next action;
-- files most likely relevant to the user's next instruction.
+```text
+Handoff recovery: FAILED_<classification>
+Supplemental recovery source: <source or none>
+```
 
-Do not restate the full handoff. Do not import superseded conversation context.
+### 5. Stop
 
-### 5. Stop and wait
-
-Do not correct drift, perform the next action, or continue the task.
-
-Return exactly one of the report structures below and stop.
+Return the report and stop at `AWAITING USER INSTRUCTIONS`.
 
 ## Required loaded report
 
 ```text
 HANDOFF LOADED
+
+Handoff Identity:
+- ID: <id>
+- Generated: <timestamp>
+- Source session: <id>
+- Selection method: <method>
+- Repository family: <identity>
+- Recorded active worktree: <path>
+- Recorded branch: <branch>
+- Recorded HEAD: <sha>
+- Content SHA-256: <hash>
 
 Handoff:
 <absolute path>
@@ -134,36 +129,44 @@ Definition of Done:
 <concise statement>
 
 Current Verified State:
-- Project:
-- Branch:
-- HEAD:
-- Working tree:
+- Invocation directory: <path>
+- Active task worktree: <path or unavailable>
+- Branch: <branch>
+- HEAD: <sha>
+- Working tree: <state>
+
+Freshness:
+CURRENT / EXPECTED_DRIFT / MATERIAL_DRIFT / SELECTION_MISMATCH /
+INVALID_AT_PUBLICATION / METADATA_INVALID / UNVERIFIABLE
+- <details>
+
+Handoff Recovery:
+SUCCESS / FAILED_<classification>
+
+Supplemental Recovery Evidence:
+<none or sources, clearly secondary>
 
 Completed Work:
-- <verified or session-evidence item>
+- <item>
 
 Remaining Work:
 - <item>
 
 Validation State:
 - Confidence: HIGH / MODERATE / LOW
-- Evidence: <concise summary>
-
-Drift:
-NONE / EXPECTED ONLY / MATERIAL / UNVERIFIABLE
-- <details when applicable>
+- Evidence: <summary>
 
 Constraints and Risks:
 - <item>
 
 Documented Next Action:
-<one bounded action from the handoff; informational only>
+<informational only>
 
 Status:
 AWAITING USER INSTRUCTIONS
 ```
 
-## Required no-handoff report
+## No-handoff report
 
 ```text
 HANDOFF NOT FOUND
@@ -174,6 +177,3 @@ Current Directory:
 Status:
 AWAITING USER INSTRUCTIONS
 ```
-
-Never append an offer to begin the documented next action. The user decides
-what happens next.

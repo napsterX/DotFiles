@@ -2,87 +2,53 @@
 
 ## Core rule
 
-A handoff is recovery evidence, not execution authority.
+A handoff is recovery evidence, not execution authority. First prove that the
+artifact selected is the exact latest verified publication for the repository
+family. Then compare its recorded task worktree with current state.
 
-Verify enough current state to explain whether the handoff is still coherent,
-then stop and wait for the user. Never continue the task from this skill.
+## Identity-first verification
+
+Before reading the narrative, verify:
+
+- latest pointer, current sidecar, and archive share one handoff ID;
+- current and archive content match the recorded SHA-256;
+- repository-family identity matches;
+- recorded active worktree is explicit;
+- publication timestamp and source session are available.
+
+Never silently fall back to an older `CURRENT.md` or archive entry.
+
+## Drift versus publication failure
+
+A HEAD mismatch alone does not prove later drift.
+
+- `MATERIAL_DRIFT` requires evidence that the handoff was valid when published
+  and the repository changed afterward.
+- `INVALID_AT_PUBLICATION` applies when omitted commits or contradictory state
+  already existed before publication.
+- `SELECTION_MISMATCH` applies when discovery returned a different handoff than
+  the latest verified publication or the wrong worktree identity.
+- If timing cannot distinguish these cases, use `UNVERIFIABLE`; do not invent an
+  explanation involving another session.
+
+## Supplemental evidence
+
+Implementation logs, issue comments, and Git history may help reconstruct the
+current state. They remain supplemental. Report continuity failure honestly and
+do not promote them into a successful handoff result.
 
 ## Read-only boundary
 
-Allowed:
+Allowed: handoff/metadata reads, project-instruction reads, Git status/log/diff,
+and helper `locate`/`collect` calls.
 
-- reading the current handoff and metadata;
-- reading applicable project instructions and named files;
-- read-only repository inspection such as branch, HEAD, status, log, and diff;
-- the session-continuity helper's read-only `locate` and `collect` commands.
+Forbidden: implementation, tests, builds, linters, migrations, repository
+verification, process mutation, Git/GitHub mutation, or executing the next action.
 
-Not allowed:
+## Confidence
 
-- implementation edits;
-- tests, builds, linters, migrations, or repository verification;
-- starting or stopping project processes;
-- Git or GitHub mutations;
-- executing the handoff's next action.
+HIGH means identity, current state, and relevant recorded evidence all reconcile.
+MODERATE means context is coherent with named limitations. LOW means identity,
+state, or a material claim cannot be verified.
 
-## Verification depth
-
-Use the smallest read-only verification sufficient to detect material drift.
-Read actual changed files and relevant contracts. Do not run the repository
-suite merely to restore context.
-
-## Drift severity
-
-### Expected drift
-
-Expected drift is explicitly predicted by the handoff and does not invalidate
-its context. Examples:
-
-- a temporary process is no longer running and the handoff said it may stop;
-- an untracked generated artifact was intentionally removed;
-- the handoff was archived after creation without changing the project.
-
-### Material drift
-
-Material drift can change what work is correct or safe. Examples:
-
-- code or contracts changed outside the documented session;
-- branch or HEAD differs unexpectedly;
-- changed-file set differs;
-- the active ticket was revised;
-- the documented next action was already completed;
-- test evidence no longer applies to the current tree;
-- the handoff points at files that no longer exist;
-- a new conflict, lock, failing process, or migration state exists.
-
-Material drift changes the report. It does not authorize this skill to fix or
-continue anything.
-
-## Validation confidence
-
-### High
-
-Current repository, requirements, changed files, and handoff context are
-verified. Relevant recorded validation still applies, and no material unknown
-remains.
-
-### Moderate
-
-The objective and repository state are verified, but a named environmental,
-runtime, or prior-test limitation remains.
-
-### Low
-
-A material requirement, code state, boundary, or validation claim cannot be
-verified.
-
-Confidence describes context quality only. No confidence level permits
-continuation from `/resume-handoff`.
-
-## Conflict handling
-
-Current tracked contracts win over the handoff. Current code wins over a claim
-that code was changed. A passing result from another commit does not apply to
-current unvalidated changes.
-
-Report conflicts explicitly, preserve the handoff's documented next action as
-informational context when useful, and end with `AWAITING USER INSTRUCTIONS`.
+Every report ends with `AWAITING USER INSTRUCTIONS`.

@@ -10,110 +10,79 @@ effort: high
 
 # Handoff
 
-Create a durable, verified operational handoff for the active task. The handoff
-is recovery state, not an informal summary and not a substitute for the
-repository.
+Create a durable, verified operational checkpoint for the active task. A handoff
+is not successful merely because a file was written: the exact newly published
+handoff must round-trip through the same discovery path used by
+`/resume-handoff`, and it must describe the repository/worktree that actually
+contains the session's work.
 
-Do not use a forked subagent for the core handoff. The current conversation is
-required to recover objectives, constraints, decisions, rejected approaches,
-and validation evidence.
-
-Read these supporting files before writing the handoff:
+Read:
 
 - [references/handoff-policy.md](references/handoff-policy.md)
 - [templates/HANDOFF.md](templates/HANDOFF.md)
 
-The optional user focus is:
-
-```text
-$ARGUMENTS
-```
-
-The current Claude session ID is:
-
-```text
-${CLAUDE_SESSION_ID}
-```
+Optional focus: `$ARGUMENTS`
+Session ID: `${CLAUDE_SESSION_ID}`
 
 ## Procedure
 
-### 1. Establish the active task
+### 1. Resolve the active task worktree
 
-Determine from the conversation and authoritative project material:
+Do not assume `$PWD` is the task worktree.
 
-- the single active objective;
-- the definition of done;
-- the current phase;
-- applicable user requirements and constraints;
-- decisions and invariants that still govern the work;
-- explicitly rejected or superseded approaches;
-- unresolved failures, blockers, and uncertainty;
-- the smallest executable next action.
+Use conversation evidence, commands executed in this session, modified files,
+active issue/branch references, and `git worktree list --porcelain` to identify
+the one worktree containing the current task state. Resolve it to a canonical
+real path and call it `TASK_ROOT`.
 
-Do not merge unrelated tasks into one handoff. If the session contains several
-threads, preserve only the thread the user is currently continuing and list
-other unfinished threads as deferred context.
+Requirements:
 
-### 2. Collect deterministic state
+- `TASK_ROOT` must contain the branch, HEAD, and files described by the active
+  task.
+- The invocation directory and active task worktree are separate facts.
+- If more than one worktree is plausible, stop and ask the user. Never guess.
+- Use the same `TASK_ROOT` for collect, draft-path, publish, locate, and final
+  verification.
+
+### 2. Establish the active task
+
+Recover the single objective, definition of done, phase, constraints,
+decisions, rejected approaches, blockers, validation evidence, and next bounded
+action. Do not merge unrelated threads.
+
+### 3. Collect deterministic state
 
 Run:
 
 ```bash
 python3 "$HOME/.claude/session-continuity/bin/session_state.py" collect \
-  --cwd "$PWD" \
+  --cwd "$TASK_ROOT" \
   --session-id "${CLAUDE_SESSION_ID}"
 ```
 
-Use the returned project root, project key, storage directory, branch, HEAD,
-status, changed-file list, and timestamp as verified evidence.
+Record the returned invocation directory, repository family, active worktree,
+project key, branch, full HEAD, status, and timestamp. Compare this state with
+the previous current handoff, if any, and account for all commits and material
+changes since that checkpoint.
 
-Also inspect only the project material needed to verify the active task:
+Read only the project material required to support the handoff. Do not run broad
+or expensive suites solely for handoff creation.
 
-- applicable `CLAUDE.md`, `CLAUDE.local.md`, and scoped rules;
-- the active issue, task, plan, architecture contract, or implementation note;
-- files changed or discussed during the session;
-- relevant diffs;
-- the latest validation output already present in the conversation or files.
+### 4. Write and validate a draft
 
-Do not run broad or expensive test suites solely to create a handoff. Low-cost
-read-only verification is allowed. Record any validation not rerun as reused
-session evidence rather than fresh evidence.
+Use the template. Every material claim must be labeled VERIFIED, SESSION
+EVIDENCE, INFERRED, or UNKNOWN. Target 300 lines; hard limit 32 KiB. Never include
+secrets, environment dumps, full logs, or large diffs.
 
-### 3. Write a draft
-
-Use the exact template and evidence labels from the supporting files. Keep the
-handoff concise enough to be reconstructed quickly:
-
-- target: at most 300 lines;
-- hard limit: 32 KiB;
-- no full large diffs;
-- no full raw logs;
-- no environment dumps;
-- no secret values.
-
-For every material claim, distinguish:
-
-- **VERIFIED** — confirmed from current repository, filesystem, or command
-  output;
-- **SESSION EVIDENCE** — recorded in this conversation but not rerun now;
-- **INFERRED** — a reasoned conclusion that still needs verification;
-- **UNKNOWN** — unresolved.
-
-Repository state and authoritative tracked contracts override conversation
-claims.
-
-Write the draft to a temporary file outside the repository. Obtain the path
-with:
+Obtain a draft path with:
 
 ```bash
 python3 "$HOME/.claude/session-continuity/bin/session_state.py" draft-path \
-  --cwd "$PWD" \
+  --cwd "$TASK_ROOT" \
   --kind handoff
 ```
 
-### 4. Validate and publish atomically
-
-Validate the draft:
+Validate:
 
 ```bash
 python3 "$HOME/.claude/session-continuity/bin/session_state.py" validate \
@@ -121,57 +90,68 @@ python3 "$HOME/.claude/session-continuity/bin/session_state.py" validate \
   --file "<draft-path>"
 ```
 
-Resolve every validation error. Do not suppress a credential warning without
-reading the flagged line and confirming it contains only a safe placeholder.
+### 5. Publish and require a verified receipt
 
-Publish only after validation succeeds:
+Publish:
 
 ```bash
 python3 "$HOME/.claude/session-continuity/bin/session_state.py" publish \
   --kind handoff \
   --source "<draft-path>" \
-  --cwd "$PWD" \
+  --cwd "$TASK_ROOT" \
   --session-id "${CLAUDE_SESSION_ID}" \
   --label "$ARGUMENTS"
 ```
 
-The helper atomically replaces `CURRENT.md`, writes sidecar metadata, and
-archives the same validated content.
+The command must return a JSON receipt with at least:
 
-### 5. Re-read the published handoff
+- `status: PUBLISHED_AND_VERIFIED`;
+- `handoff_id`;
+- `active_worktree`;
+- `branch` and `head`;
+- `content_sha256`;
+- `current_path` and `archive_path`.
 
-Read the final `CURRENT.md` path returned by `publish`. Check for:
+Any nonzero result or incomplete receipt means `HANDOFF CREATION FAILED`.
 
-- contradictions between objective and next action;
-- incorrect branch, HEAD, or working-tree claims;
-- completion claims unsupported by evidence;
-- stale rejected approaches presented as active decisions;
-- missing material blockers;
-- leaked secret values;
-- a vague or non-executable next action.
+### 6. Round-trip through resume discovery
 
-If the final file is wrong, correct a new draft and publish again. Never report
-success merely because a file exists.
+Immediately run:
+
+```bash
+python3 "$HOME/.claude/session-continuity/bin/session_state.py" locate \
+  --cwd "$TASK_ROOT" \
+  --kind handoff
+```
+
+Require all of the following:
+
+- located `handoff_id` equals the publish receipt;
+- current and archived content hashes match the receipt;
+- located active worktree equals canonical `TASK_ROOT`;
+- recorded branch and HEAD equal the publish receipt;
+- live HEAD and working-tree status still equal the publication snapshot;
+- the handoff includes all material work completed since the previous handoff.
+
+Read the located `CURRENT.md` itself and check objective, completion state,
+blockers, and next action for contradictions. Do not report success when locate
+returns an older handoff, metadata is inconsistent, or the handoff was stale at
+publication.
 
 ## Stop conditions
 
-Stop and report instead of publishing when:
-
-- the active objective cannot be identified without guessing;
-- the current directory cannot be resolved safely;
-- authoritative project state materially contradicts the conversation and the
-  correct state cannot be established;
-- required handoff sections cannot be completed honestly;
-- the draft contains a suspected credential or private key;
-- the helper or atomic publish fails;
-- the next action cannot be stated as a concrete operation.
+Stop without publishing, or report creation failure, when task-worktree identity
+is ambiguous, helper/version checks fail, current state cannot be established,
+publication does not round-trip, state changes during publication, required
+sections are dishonest or incomplete, or a secret may be present.
 
 ## Required final output
 
-Return exactly this structure:
-
 ```text
 HANDOFF CREATED
+
+Handoff ID:
+<id>
 
 Objective:
 <one sentence>
@@ -183,23 +163,22 @@ Archive:
 <absolute archive path>
 
 Repository State:
-- Root: <path>
-- Branch: <branch or NOT A GIT REPOSITORY>
-- HEAD: <abbreviated SHA or NOT APPLICABLE>
-- Working tree: CLEAN / DIRTY / NOT APPLICABLE
+- Invocation directory: <path>
+- Active task worktree: <path>
+- Branch: <branch>
+- HEAD: <full or abbreviated SHA>
+- Working tree: CLEAN / DIRTY
+- Content SHA-256: <hash>
 
 Next Exact Action:
-<one concrete action>
+<one bounded action>
 
 Material Uncertainty:
-<none, or concise statement>
+<none or concise statement>
 
 Next Commands:
 /clear <short-sanitized-label>
 /resume-handoff
 ```
 
-Do not attempt to execute `/clear` yourself. Do not perform the next action in
-the same turn after publishing the handoff. `/resume-handoff` only reloads and
-verifies this handoff, reports the reconstructed state, and waits for explicit
-user instructions; it never starts the task automatically.
+Do not execute `/clear` or the next action.
