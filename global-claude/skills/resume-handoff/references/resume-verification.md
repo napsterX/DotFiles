@@ -16,7 +16,11 @@ Before reading the narrative, verify:
 - recorded active worktree is explicit;
 - publication timestamp and source session are available.
 
-Never silently fall back to an older `CURRENT.md` or archive entry.
+Never silently fall back to an older `CURRENT.md` or archive entry. A conservative
+legacy-key compatibility scan is allowed only when the current project key has no
+verified handoff and exactly one candidate is tied to the same canonical
+repository family or worktree path. Classify schema-v1 results as
+`LEGACY_UNVERIFIED`; do not claim schema-v2 publication guarantees.
 
 ## Drift versus publication failure
 

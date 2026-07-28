@@ -82,6 +82,10 @@ python3 "$HOME/.claude/session-continuity/bin/session_state.py" draft-path \
   --kind handoff
 ```
 
+The returned path must not exist yet. Write the draft once at that path. Do not
+pre-create or read an empty placeholder file. If the helper returns an existing
+path, stop with `HANDOFF CREATION FAILED`.
+
 Validate:
 
 ```bash

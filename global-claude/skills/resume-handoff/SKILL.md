@@ -37,8 +37,11 @@ python3 "$HOME/.claude/session-continuity/bin/session_state.py" locate \
 ```
 
 The command must validate current/archive hashes, sidecar identity, and the latest
-pointer before returning a handoff. If it fails, report metadata or selection
-failure; do not search arbitrary old handoffs and pretend recovery succeeded.
+pointer before returning a handoff. It may use the helper's conservative
+legacy-project-key compatibility scan when the current schema-v2 key has no handoff.
+A legacy candidate is acceptable only when repository-family metadata or an exact
+canonical repository/worktree path ties it to this repository. If multiple legacy
+candidates match, stop with `SELECTION_MISMATCH`; never choose by name alone.
 
 ### 2. Read identity before narrative
 
@@ -81,6 +84,9 @@ Classifications:
 - **INVALID_AT_PUBLICATION** — recorded claims were already inconsistent with the
   publication snapshot or omitted work that existed before publication.
 - **METADATA_INVALID** — pointer, sidecar, archive, or digest mismatch.
+- **LEGACY_UNVERIFIED** — a schema-v1 handoff was found through conservative
+  project-key compatibility discovery and requires migration before it can carry
+  schema-v2 publication guarantees.
 - **UNVERIFIABLE** — required evidence is unavailable.
 
 Do not infer that another session changed the repository merely because HEAD
@@ -137,7 +143,7 @@ Current Verified State:
 
 Freshness:
 CURRENT / EXPECTED_DRIFT / MATERIAL_DRIFT / SELECTION_MISMATCH /
-INVALID_AT_PUBLICATION / METADATA_INVALID / UNVERIFIABLE
+INVALID_AT_PUBLICATION / METADATA_INVALID / LEGACY_UNVERIFIED / UNVERIFIABLE
 - <details>
 
 Handoff Recovery:

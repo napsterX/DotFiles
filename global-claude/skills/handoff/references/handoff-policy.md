@@ -39,7 +39,9 @@ archive Markdown, archive metadata, and latest pointer. It must then prove:
 - unchanged branch, HEAD, and status during publication;
 - successful lookup through the resume discovery path.
 
-A file-write success without this proof is a failed handoff.
+A file-write success without this proof is a failed handoff. The helper's
+`draft-path` operation must return a unique path that does not yet exist; it must
+not create an empty placeholder that forces Claude Code to read before writing.
 
 ## Completeness since prior checkpoint
 
