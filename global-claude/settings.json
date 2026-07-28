@@ -73,9 +73,7 @@
           {
             "type": "command",
             "command": "python3",
-            "args": [
-              "/Users/manish/.claude/session-continuity/hooks/sessionstart_clear_hint.py"
-            ],
+            "args": [],
             "timeout": 20,
             "statusMessage": "Checking for a task handoff"
           }
