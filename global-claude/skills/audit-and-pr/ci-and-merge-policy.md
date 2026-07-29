@@ -78,11 +78,13 @@ Keep these fields separate through the entire PR phase:
 - `testing_confidence`: HIGH / MODERATE / LOW;
 - `ci_enforcement_confidence`: HIGH / MODERATE / LOW / NOT_APPLICABLE;
 - `merge_eligibility`: AUTO_MERGE_ELIGIBLE / MANUAL_MERGE_REQUIRED / BLOCKED;
-- `deferred_findings_tracking`: COMPLETE / NOT_APPLICABLE / TRACKING BLOCKED.
+- `deferred_findings_tracking`: COMPLETE / NOT_APPLICABLE / TRACKING BLOCKED;
+- `shipment_classification`: NORMAL_GREEN / FAILED_PRE_EXISTING_BASELINE / BLOCKED.
 
 A documented repository-wide CI coverage limitation does not lower testing
-confidence when the exact audited commit passed the authoritative ship gate and
-all change-relevant high-risk checks were directly executed. It may set CI
+confidence when the exact audited commit passed the authoritative ship gate, or
+received a complete `FAILED_PRE_EXISTING_BASELINE` classification, and all
+change-relevant high-risk checks were directly executed. It may set CI
 enforcement confidence to Moderate and may require manual merge under repository
 policy.
 
@@ -95,7 +97,8 @@ incomplete.
 Automatic merge requires all:
 
 - audit eligibility gate cleared;
-- final Repository Verification or legacy gate passed for the exact PR HEAD;
+- final Repository Verification or legacy gate passed green for the exact PR
+  HEAD; `FAILED_PRE_EXISTING_BASELINE` never satisfies automatic merge;
 - testing confidence High;
 - required CI green, or the repository has no CI as an accepted state;
 - CI enforcement confidence High or Not Applicable, unless repository policy explicitly permits automatic merge with a documented accepted Moderate enforcement limitation;
@@ -110,6 +113,22 @@ Automatic merge requires all:
 Immediately before merge, confirm the PR head SHA still equals the SHA that
 passed `./scripts/verify ship --base <resolved-base>` when the adapter is present, or the final legacy validation when absent. If it differs, stop and restart from audit of the
 new commit.
+
+## Baseline-restoration manual merge
+
+A PR classified `FAILED_PRE_EXISTING_BASELINE` is never automatically merged,
+regardless of testing confidence, CI state, repository permissions, or any
+normal-mode auto-merge authorization. The skill must:
+
+- leave the PR open;
+- state the exact aggregate nonzero result and complete failure ledger;
+- require a maintainer or the user to merge manually;
+- never enable auto-merge or execute a merge command;
+- treat any new PR-head commit as invalidating the comparison;
+- state that normal green-gate policy resumes when the lane is restored.
+
+After a user or maintainer confirms merge, the skill may be invoked to reconcile
+issues and clean up.
 
 ## High-risk changes
 
@@ -196,22 +215,31 @@ not invalidate a confirmed merge, but it must be reported.
 Run only after GitHub confirms the PR is merged and provides the resulting
 merge commit or equivalent merged state.
 
-1. Record the merged PR URL, source branch, default branch, and merge commit.
-2. Ensure unrelated local work is not present. If unrelated local work would be
+1. Record the merged PR URL, source branch, PR target branch, GitHub default
+   branch, reviewed head, audit disposition, shipment classification, and merge
+   commit.
+2. If the PR targeted a non-default integration branch, do not assume issue
+   closing keywords fired. Reconcile the implementation issue manually under
+   repository policy and record the PR number, reviewed head, merge SHA, audit
+   disposition, and any baseline-restoration exception. If reconciliation is
+   blocked, report it before branch cleanup.
+3. Ensure unrelated local work is not present. If unrelated local work would be
    endangered by switching branches, do not stash, reset, clean, or overwrite
    it. Report cleanup as blocked and leave the work untouched.
-3. Switch to the default branch.
-4. Fetch `origin` and fast-forward the local default branch only. Never create a
-   merge commit merely to update it and never reset it destructively.
-5. Verify the merged PR's changes are present on the updated default branch.
-6. Verify the local feature branch is fully merged into the updated default
+4. Switch to the PR target branch, which is the branch that received the merge.
+   Do not substitute GitHub's default branch when the PR targeted a non-default
+   integration branch.
+5. Fetch `origin` and fast-forward the local PR target branch only. Never create
+   a merge commit merely to update it and never reset it destructively.
+6. Verify the merged PR's changes are present on the updated PR target branch.
+7. Verify the local feature branch is fully merged into the updated PR target
    branch.
-7. Delete the local feature branch with `git branch -d <branch>` only. Never use
+8. Delete the local feature branch with `git branch -d <branch>` only. Never use
    `-D`.
-8. Confirm the remote feature branch was deleted by the merge operation. If it
+9. Confirm the remote feature branch was deleted by the merge operation. If it
    remains and repository practice permits deletion, delete only that exact
    merged remote branch with `git push origin --delete <branch>`.
-9. Confirm the final branch, HEAD, working-tree status, and remaining local and
+10. Confirm the final branch, HEAD, working-tree status, and remaining local and
    remote feature-branch state.
 
 Cleanup must never:

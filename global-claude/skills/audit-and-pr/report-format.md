@@ -11,6 +11,13 @@ Audit Model:
 Objective:
 <one sentence>
 
+Operating Mode:
+- Mode: NORMAL / BASELINE_RESTORATION
+- Source: DEFAULT / EXPLICIT / INFERRED
+- Target already-red lane: <name or NOT_APPLICABLE>
+- Target failure: <identity or NOT_APPLICABLE>
+- Classification announced before remote mutation: YES / NO / NOT_APPLICABLE
+
 Audited Scope:
 - Repository:
 - Branch:
@@ -35,6 +42,30 @@ Deterministic Preflight:
 - Preflight status: PASS / NOT_APPLICABLE / BLOCKED_REQUIRED_CHECK / BLOCKED_INVOCATION / BLOCKED_ADAPTER / BLOCKED_CONFIGURATION / BLOCKED_ENVIRONMENT / BLOCKED_TIMEOUT / BLOCKED_INTERRUPTED / BLOCKED_PROTOCOL / BLOCKED_BASE_RESOLUTION
 - Contradictions: <details> / NONE
 - Output evidence: <concise diagnostic summary; preserve complete captured output in the working record>
+
+Baseline Restoration:
+- Candidate: YES / NO
+- Canonical base directly reproduced: YES / NO / NOT_APPLICABLE
+- Canonical base commit:
+- Authoritative lane/profile:
+- Base command:
+- Base result:
+- Branch command:
+- Branch result:
+- Comparison environment/profile:
+- Comparison reruns: <count and reason> / NONE
+- Target failure repaired: YES / NO / NOT_APPLICABLE
+- Failure ledger complete: YES / NO / NOT_APPLICABLE
+- Ledger:
+  | Failure identity | Base result | Branch result | Owner | Disposition |
+  |------------------|-------------|---------------|-------|-------------|
+  | ... | ... | ... | ... | FIXED_BY_BRANCH / UNCHANGED_TRACKED_BASELINE / PRE_EXISTING_NEWLY_UNMASKED / NEW_REGRESSION / UNATTRIBUTED |
+- New regressions: NONE / <rows>
+- Unattributed failures: NONE / <rows>
+- Protected-domain residuals: NONE / <rows>
+- Residual canonical issues: <links> / NOT_APPLICABLE
+- Eligibility: ELIGIBLE / BLOCKED / NOT_APPLICABLE
+- Blockers: <details> / NONE
 
 Parallel Audit Execution:
 - Requested mode: AUTO / SEQUENTIAL / PARALLEL
@@ -98,7 +129,8 @@ Final Repository Verification:
 - Working tree clean after final gate: YES / NO
 - HEAD unchanged through final gate: YES / NO
 - Commit added after final gate: YES / NO
-- Status: PASS / NOT_APPLICABLE / BLOCKED_REQUIRED_CHECK / BLOCKED_INVOCATION / BLOCKED_ADAPTER / BLOCKED_CONFIGURATION / BLOCKED_ENVIRONMENT / BLOCKED_TIMEOUT / BLOCKED_INTERRUPTED / BLOCKED_PROTOCOL / BLOCKED_BASE_RESOLUTION
+- Aggregate gate status: NORMAL_GREEN / FAILED_PRE_EXISTING_BASELINE / NOT_APPLICABLE / BLOCKED
+- Status: PASS / FAILED_PRE_EXISTING_BASELINE / NOT_APPLICABLE / BLOCKED_REQUIRED_CHECK / BLOCKED_INVOCATION / BLOCKED_ADAPTER / BLOCKED_CONFIGURATION / BLOCKED_ENVIRONMENT / BLOCKED_TIMEOUT / BLOCKED_INTERRUPTED / BLOCKED_PROTOCOL / BLOCKED_BASE_RESOLUTION
 - Contradictions: <details> / NONE
 - Output evidence: <concise diagnostic summary; preserve complete captured output in the working record>
 
@@ -117,6 +149,7 @@ CI Enforcement Confidence:
 
 Merge Eligibility:
 - Classification: AUTO_MERGE_ELIGIBLE / MANUAL_MERGE_REQUIRED / BLOCKED / PENDING_PR_AND_CI
+- Baseline-restoration auto-merge prohibited: YES / NO / NOT_APPLICABLE
 - Repository-policy reason:
 - Live gate reason:
 
@@ -150,6 +183,10 @@ PR Change Summary:
 - Permanent changelog convention: NONE / CHANGELOG_FILE / CHANGESETS / TOWNCRIER / CUSTOM_FRAGMENT
 - Permanent artifact action: PR_BODY_ONLY / VALIDATE_EXISTING / CREATE_REQUIRED_ARTIFACT / BLOCKED
 - Permanent artifact validation: PASS / FAIL / NOT_APPLICABLE
+- Baseline-restoration section: PRESENT / NOT_APPLICABLE / BLOCKED
+- Failure ledger rows included: <count> / NOT_APPLICABLE
+- Truthful nonzero aggregate result included: YES / NO / NOT_APPLICABLE
+- Manual-merge statement included: YES / NO / NOT_APPLICABLE
 - Summary status: READY / BLOCKED_STALE_HEAD / BLOCKED_MARKERS / BLOCKED_SENSITIVE_CONTENT / BLOCKED_CHANGELOG
 
 Git:
@@ -169,9 +206,14 @@ Merge:
 - Result:
 - Merge commit:
 - Method:
+- Manual merge required by baseline restoration: YES / NO
+- Non-default integration target: YES / NO
+- Post-merge issue reconciliation: COMPLETE / BLOCKED / NOT_APPLICABLE
+- Reconciled issue record: <PR, reviewed head, merge SHA, audit disposition, exception> / NOT_APPLICABLE
 
 Cleanup:
-- Default branch updated:
+- PR target branch updated:
+- GitHub default branch changed or untouched:
 - Local feature branch:
 - Remote feature branch:
 - Final working tree:
@@ -180,6 +222,7 @@ Outcome:
 - MERGED AND CLEANED UP
 - MERGED — CLEANUP INCOMPLETE
 - PR OPEN — MANUAL REVIEW REQUIRED
+- PR OPEN — BASELINE RESTORATION, MANUAL MERGE REQUIRED
 - PR OPEN — CI FAILED
 - PR OPEN — CI UNRESOLVED
 - TRACKING BLOCKED — BRANCH PUSHED, PR NOT MUTATED
@@ -195,10 +238,11 @@ Smallest Safe Follow-up Prompt:
 <include when additional work is required>
 ```
 
-Keep deterministic preflight, parallel audit execution, evidence
-reconciliation, finding disposition, deferred-finding tracking, final Repository
-Verification, independent audit, testing confidence, CI enforcement confidence,
-CI result, PR state, merge eligibility, and merge result separate. Never collapse the result into “tests passed” or
+Keep operating mode, deterministic preflight, baseline-restoration comparison
+and ledger, parallel audit execution, evidence reconciliation, finding
+disposition, deferred-finding tracking, final Repository Verification,
+independent audit, testing confidence, CI enforcement confidence, CI result, PR
+state, merge eligibility, issue reconciliation, and merge result separate. Never collapse the result into “tests passed” or
 imply any adapter exit `0` is audit approval.
 
 A documented repository-wide CI coverage limitation must not lower testing
@@ -230,6 +274,30 @@ Deterministic Preflight:
 - Fast command: ./scripts/verify fast --base origin/main
 - Fast result: exit 0
 - Preflight status: PASS
+
+Baseline Restoration:
+- Candidate: YES / NO
+- Canonical base directly reproduced: YES / NO / NOT_APPLICABLE
+- Canonical base commit:
+- Authoritative lane/profile:
+- Base command:
+- Base result:
+- Branch command:
+- Branch result:
+- Comparison environment/profile:
+- Comparison reruns: <count and reason> / NONE
+- Target failure repaired: YES / NO / NOT_APPLICABLE
+- Failure ledger complete: YES / NO / NOT_APPLICABLE
+- Ledger:
+  | Failure identity | Base result | Branch result | Owner | Disposition |
+  |------------------|-------------|---------------|-------|-------------|
+  | ... | ... | ... | ... | FIXED_BY_BRANCH / UNCHANGED_TRACKED_BASELINE / PRE_EXISTING_NEWLY_UNMASKED / NEW_REGRESSION / UNATTRIBUTED |
+- New regressions: NONE / <rows>
+- Unattributed failures: NONE / <rows>
+- Protected-domain residuals: NONE / <rows>
+- Residual canonical issues: <links> / NOT_APPLICABLE
+- Eligibility: ELIGIBLE / BLOCKED / NOT_APPLICABLE
+- Blockers: <details> / NONE
 
 Parallel Audit Execution:
 - Requested mode: AUTO
@@ -309,3 +377,44 @@ permitted.
 
 If merge succeeded but cleanup was incomplete, do not call the workflow clean.
 Name every branch or working-tree condition left behind.
+
+## Baseline-restoration example
+
+```text
+Operating Mode:
+- Mode: BASELINE_RESTORATION
+- Source: EXPLICIT
+- Target already-red lane: dashboard ship lane
+- Target failure: dashboard test A
+
+Baseline Restoration:
+- Candidate: YES
+- Canonical base directly reproduced: YES
+- Canonical base commit: <base-sha>
+- Base command: ./scripts/verify ship --base origin/staging
+- Base result: exit 1 — A, B, C
+- Branch command: ./scripts/verify ship --base origin/staging
+- Branch result: exit 1 — B, C
+- Target failure repaired: YES
+- Failure ledger complete: YES
+- Ledger:
+  | Failure identity | Base result | Branch result | Owner | Disposition |
+  | dashboard test A | FAIL | PASS | #435 | FIXED_BY_BRANCH |
+  | dashboard test B | FAIL | FAIL | #436 | UNCHANGED_TRACKED_BASELINE |
+  | dashboard test C | FAIL | FAIL | #438 | UNCHANGED_TRACKED_BASELINE |
+- New regressions: NONE
+- Unattributed failures: NONE
+- Eligibility: ELIGIBLE
+
+Final Repository Verification:
+- Result: exit 1
+- Aggregate gate status: FAILED_PRE_EXISTING_BASELINE
+- Status: FAILED_PRE_EXISTING_BASELINE
+
+Merge Eligibility:
+- Classification: MANUAL_MERGE_REQUIRED
+- Baseline-restoration auto-merge prohibited: YES
+
+Outcome:
+- PR OPEN — BASELINE RESTORATION, MANUAL MERGE REQUIRED
+```

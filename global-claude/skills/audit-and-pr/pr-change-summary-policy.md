@@ -12,7 +12,9 @@ The summary must help a reviewer answer:
 - whether users, operators, APIs, schemas, configuration, or compatibility are
   affected;
 - whether any breaking action is required;
-- which confirmed P2/P3 findings were deferred to open GitHub issues.
+- which confirmed P2/P3 findings were deferred to open GitHub issues;
+- when applicable, exactly how an already-red mandatory lane improved without
+  introducing any new or unattributed failure.
 
 ## Final-state authority
 
@@ -30,7 +32,8 @@ HEAD after remediation, recommit, or final-gate retry changes the candidate.
 
 A draft may be prepared while the final ship gate runs, but it is not final until:
 
-1. the exact committed HEAD passes the final gate;
+1. the exact committed HEAD receives `NORMAL_GREEN`, successful legacy
+   validation, or a complete `FAILED_PRE_EXISTING_BASELINE` classification;
 2. the branch is pushed successfully;
 3. deferred P2/P3 issue tracking is complete or not applicable.
 
@@ -124,6 +127,31 @@ Summarize security changes at the minimum useful level, for example:
 Tightened tenant-scoped authorization for report access.
 ```
 
+## Baseline-restoration section
+
+When the final shipment classification is `FAILED_PRE_EXISTING_BASELINE`, add a
+distinct `Baseline restoration` section inside the managed block. This section
+contains the complete Base-versus-branch failure ledger. Generate it
+from the final audited HEAD and complete ledger, not from narrative claims.
+Include:
+
+- target failure fixed;
+- canonical base and exact base commit;
+- exact canonical-base command and truthful result;
+- exact final branch commit, command, and truthful result;
+- aggregate ship command and nonzero exit `1`;
+- the full table with failure identity, base result, branch result, owner, and
+  disposition;
+- links to every canonical issue;
+- explicit confirmation that no new or unattributed failure appeared;
+- manual maintainer/user merge requirement;
+- statement that the exception is scoped and not precedent;
+- statement that normal green-gate policy resumes when the lane is restored.
+
+Reject rendering when the ledger contains `NEW_REGRESSION`, `UNATTRIBUTED`, a
+missing issue link, no `FIXED_BY_BRANCH` row, or an aggregate exit other than
+`1`. Never rewrite `FAILED_PRE_EXISTING_BASELINE` as PASS.
+
 ## Permanent repository changelogs
 
 Do not create a permanent changelog system merely because a PR is being created.
@@ -164,5 +192,7 @@ Record:
 - user-facing impact classification;
 - breaking-change status;
 - deferred issue links included;
+- baseline-restoration classification, target, exact commands/results, complete
+  ledger, issue owners, and manual-merge statement when applicable;
 - detected permanent changelog convention;
 - permanent artifact action and validation result.

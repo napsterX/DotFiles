@@ -98,6 +98,41 @@ class RepositoryVerificationProfileTests(unittest.TestCase):
         self.assertEqual("BLOCKED_INVOCATION", result.status)
         self.assertEqual(2, result.effective_exit_code)
 
+    def test_exit_one_can_only_pass_shipment_with_proven_baseline_restoration(self):
+        self.make_adapter("raise SystemExit(1)\n")
+        result = rv.run_repository_verification(
+            self.repo,
+            "origin/main",
+            profile="ship",
+        )
+        self.assertFalse(
+            rv.repository_verification_allows_shipment(
+                result, audit_eligible=True
+            )
+        )
+        self.assertTrue(
+            rv.repository_verification_allows_shipment(
+                result,
+                audit_eligible=True,
+                baseline_restoration_eligible=True,
+            )
+        )
+
+    def test_exit_four_never_uses_baseline_restoration(self):
+        self.make_adapter("raise SystemExit(4)\n")
+        result = rv.run_repository_verification(
+            self.repo,
+            "origin/main",
+            profile="ship",
+        )
+        self.assertFalse(
+            rv.repository_verification_allows_shipment(
+                result,
+                audit_eligible=True,
+                baseline_restoration_eligible=True,
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

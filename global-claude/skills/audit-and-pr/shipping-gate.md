@@ -47,8 +47,13 @@ policy, or lack of reusable exact-HEAD evidence:
 A documentation-only or trivially low-risk change may skip `fast` with an
 explicit evidence-based reason. Do not run the full `ship` profile at this gate.
 
-Continue only after all required preflight invocations return effective exit `0`
-with no contradictory output and no adapter-caused HEAD or working-tree change.
+In normal mode, continue only after all required preflight invocations return
+effective exit `0` with no contradictory output and no adapter-caused HEAD or
+working-tree change. In a `BASELINE_RESTORATION` candidate, `doctor` must still
+pass. A `fast` exit `1` may be retained only as comparison evidence while the
+canonical-base and branch failure ledger is built under
+`baseline-restoration-policy.md`; exit `2` through `5` or any protocol,
+environment, HEAD, or tree defect still blocks.
 
 ### Adapter absent
 
@@ -60,7 +65,11 @@ an adapter or fail solely because it is absent.
 
 Block before the deep audit when the path exists but is invalid or a required
 preflight invocation returns nonzero, times out, is interrupted, contradicts
-success, changes HEAD, or changes the working tree.
+success, changes HEAD, or changes the working tree, except for the narrowly
+retained `fast` exit `1` comparison evidence described above. That evidence does
+not clear preflight until the untouched canonical base is reproduced and the
+preliminary ledger contains no new, unattributed, untracked, or protected-domain
+residual.
 
 Never fall back to legacy validation after a present adapter fails.
 
@@ -80,11 +89,16 @@ remediation, targeted validation, evidence reconciliation, and re-audit rounds.
 - any confirmed P2/P3 lacks a complete issue-ready tracking record;
 - testing confidence is Low;
 - a testing stop condition remains;
-- required deterministic preflight is unresolved or failed;
+- required deterministic preflight is unresolved or failed, unless the only
+  retained exit `1` is the exact authoritative lane under an otherwise eligible
+  `BASELINE_RESTORATION` comparison;
 - CI enforcement confidence is Low because required enforcement is missing,
   newly weakened, or violates repository policy;
 - objective is unsatisfied;
-- an unexplained validation failure remains;
+- an unexplained validation failure remains; known restoration residuals count
+  as explained only when the complete ledger classifies them as
+  `UNCHANGED_TRACKED_BASELINE` or `PRE_EXISTING_NEWLY_UNMASKED` and every owner
+  is an open canonical issue;
 - a required parallel audit lane failed, became stale, or remained uncovered.
 
 When blocked:
@@ -125,7 +139,9 @@ or legacy gate completes. A documented repository-wide CI coverage limitation
 must not reduce testing confidence merely because some required checks are
 local-only.
 
-After final verification passes, testing confidence may remain `HIGH` when:
+After final verification passes, or an exact-HEAD result receives a complete
+`FAILED_PRE_EXISTING_BASELINE` classification, testing confidence may remain
+`HIGH` when:
 
 - direct evidence covers the exact committed code state;
 - the authoritative final ship or legacy gate passed;
@@ -179,23 +195,40 @@ Preserve the legacy repository validation and shipping workflow. Adapter absence
 is not itself a finding or blocker unless repository policy separately requires
 it.
 
+### Normal green result
+
+Exit `0` with no contradiction and unchanged clean repository state clears the
+normal final gate.
+
+### Controlled baseline-restoration result
+
+If and only if the final adapter exits `1`, evaluate
+`baseline-restoration-policy.md`. Do not reinterpret the adapter result. A fully
+eligible comparison is classified `FAILED_PRE_EXISTING_BASELINE`. It permits
+push and PR creation, requires manual merge, and never permits auto-merge.
+
 ### Block when
 
 - a present adapter is non-executable, a directory, invalid, or unusable;
 - canonical base cannot be resolved or validated;
-- adapter exits `1`, `2`, `3`, `4`, `5`, or any unsupported nonzero code;
+- adapter exits `1` without complete `BASELINE_RESTORATION` eligibility;
+- adapter exits `2`, `3`, `4`, `5`, or any unsupported nonzero code;
 - adapter is interrupted or times out;
 - adapter output contradicts exit `0`;
 - HEAD changes while the gate runs;
 - the command changes staged, unstaged, or untracked state;
 - the exact result cannot be established;
-- legacy validation fails for an adapter-absent repository.
+- legacy validation fails without an equivalent complete restoration
+  classification for the repository-native mandatory lane.
 
 When blocked:
 
 - retain the local commit;
 - do not push;
-- do not file tracking issues from the failed shipment attempt;
+- do not file tracking issues from the failed shipment attempt. The sole
+  exception is an exact canonical issue for an independently proven newly
+  unmasked baseline residual after audit; creating it does not clear the gate,
+  and the restoration decision must be rerun before push;
 - do not create or update a PR;
 - do not merge;
 - report the committed SHA, base, exact command, exit state, captured output,
@@ -210,5 +243,7 @@ Any corrective edit is new implementation work. It requires:
 5. a clean tree;
 6. another final exact-HEAD ship run.
 
-Clearing this gate permits push and PR creation/update. It does not by itself
-permit merge.
+A normal green result permits push and PR creation/update. A complete
+`FAILED_PRE_EXISTING_BASELINE` classification also permits push and PR
+creation/update, but requires the full ledger in the PR and manual merge. Neither
+result by itself permits merge.

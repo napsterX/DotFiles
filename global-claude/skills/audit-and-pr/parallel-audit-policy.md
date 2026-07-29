@@ -175,8 +175,9 @@ PR body, managed change-summary draft, and final report skeleton from
 already-audited evidence. Treat the summary as provisional until the final HEAD
 and deferred-finding issue ledger are fixed. Do not push,
 create or update a PR, file deferred-finding issues, merge, or clean branches
-until the final gate passes for the exact committed SHA. After the gate, issue
-search, deduplication, and creation remain centralized; parallel lanes never
+until the exact committed SHA receives `NORMAL_GREEN`, successful legacy
+validation, or a complete `FAILED_PRE_EXISTING_BASELINE` classification. After
+that classification, issue search, deduplication, and creation remain centralized; parallel lanes never
 mutate GitHub independently.
 
 ## Failure handling

@@ -105,7 +105,10 @@ missing dependency as success.
 Handle adapter exit codes exactly for `doctor`, `fast`, and `ship`:
 
 - `0`: the invoked profile passed;
-- `1`: one or more required checks failed; block the current stage;
+- `1`: one or more required checks failed; block the current stage in normal
+  mode. At the final exact-HEAD gate only, a proven `BASELINE_RESTORATION`
+  candidate may classify this truthful nonzero result under
+  `baseline-restoration-policy.md`;
 - `2`: invalid invocation or unsupported argument; block as integration or
   protocol defect;
 - `3`: adapter, configuration, or protocol error; block;
@@ -114,7 +117,9 @@ Handle adapter exit codes exactly for `doctor`, `fast`, and `ship`:
 - `5`: interrupted or timed out; block.
 
 Never fall back to legacy validation after exit `1` through `5`. Never treat a
-nonzero result as advisory. Unsupported exit codes are protocol defects.
+nonzero result as advisory or green. A final exit `1` may permit push and PR
+creation only through the separate, complete `FAILED_PRE_EXISTING_BASELINE`
+classification. Unsupported exit codes are protocol defects.
 
 ## Contradictory success output
 
@@ -155,16 +160,27 @@ audit scope are established:
    requires it, or no reusable exact-HEAD fast evidence exists;
 4. permit a documented `fast` skip only for documentation-only or trivially
    low-risk changes where the evidence plan does not require it;
-5. stop before the deep independent audit on any required preflight blocker;
-6. when the adapter is absent, preserve legacy validation discovery and
-   continue.
+5. in normal mode, stop before the deep independent audit on any required
+   preflight blocker;
+6. for a restoration candidate, require `doctor` exit `0`, then reproduce the
+   relevant mandatory lane once on the untouched canonical base and once on the
+   branch. A `fast` exit `1` may be retained only as comparison evidence; exit
+   `2` through `5` or any protocol/environment mutation still blocks;
+7. build and validate the preliminary failure ledger before the deep audit;
+8. when the adapter is absent, preserve legacy validation discovery and
+   continue, using the repository-native authoritative lane for any restoration
+   comparison.
 
 Do not invoke `ship` in the normal pre-audit stage. `doctor` and `fast` are
 fail-fast readiness checks, not audit approval.
 
-A `fast` failure means the implementation is not audit-ready. Preserve output
-and stop rather than spending deep-audit time on a deterministically broken
-state. No legacy fallback is allowed for a present adapter.
+In normal mode, a `fast` failure means the implementation is not audit-ready.
+Preserve output and stop rather than spending deep-audit time on a
+deterministically broken state. In a restoration candidate, only exit `1` from
+the identified lane may proceed to the bounded base-versus-branch comparison;
+the candidate still blocks unless the preliminary ledger proves no new,
+unattributed, untracked, or protected-domain residual. No legacy fallback is
+allowed for a present adapter.
 
 ## Remediation revalidation
 
@@ -194,21 +210,41 @@ After audit eligibility clears and the final audited scope is committed:
    ./scripts/verify ship --base <resolved-base>
    ```
 
-4. require exit `0` with no contradictory output, HEAD change, or tree change;
-5. bind the result to that SHA.
+4. bind the exact result to that SHA and unchanged clean tree;
+5. when exit is `0`, classify `NORMAL_GREEN`;
+6. when exit is `1`, evaluate `baseline-restoration-policy.md` only if the mode
+   was explicitly requested or conclusively inferred before shipping;
+7. when the complete final ledger proves eligibility, classify
+   `FAILED_PRE_EXISTING_BASELINE`, permit push and PR creation, and require
+   manual merge;
+8. block exit `2` through `5`, unsupported codes, contradiction, timeout,
+   interruption, HEAD change, or tree change.
 
-Only this final result can satisfy the repository-verification condition for
-push, PR operations, and merge. If the PR head later differs, restart audit and
+Only `NORMAL_GREEN`, `NOT_APPLICABLE` legacy success, or a complete
+`FAILED_PRE_EXISTING_BASELINE` classification can satisfy the verification
+condition for push and PR operations. The restoration classification never
+permits automatic merge. If the PR head later differs, restart audit and
 verification for the new commit.
 
 For adapter-absent repositories, the final verification condition remains the
 preserved legacy validation result plus the independent audit and existing
 shipping gates.
 
-If final `ship` fails, retain the local commit and stop before push, tracking
-issues, PR mutation, or merge. Any correction is new implementation work and
-requires targeted validation, independent re-audit, a new commit, and another
-final ship run.
+If final `ship` fails without complete restoration eligibility, retain the local
+commit and stop before push, PR mutation, or merge. Any correction is new
+implementation work and requires targeted validation, independent re-audit, a
+new commit, and another final ship run. Never call the aggregate gate green when
+the exception is used.
+
+## Baseline-restoration comparison
+
+Follow `baseline-restoration-policy.md`. Reproduce the same authoritative lane
+under the same material environment on an untouched canonical-base worktree and
+on the branch. Record exact check identity, first causal error, profile, and
+canonical issue. Use `scripts/baseline_restoration.py` when helpers are
+available. Any `NEW_REGRESSION`, `UNATTRIBUTED`, untracked residual, or protected
+domain residual blocks. Base reproduction and branch comparison run once each,
+with reruns only after relevant retained remediation invalidates the evidence.
 
 ## Independent audit authority
 

@@ -217,8 +217,28 @@ def repository_verification_allows_shipment(
     final_result: VerificationResult,
     *,
     audit_eligible: bool,
+    baseline_restoration_eligible: bool = False,
 ) -> bool:
-    return audit_eligible and final_result.status in {"PASS", "NOT_APPLICABLE"} and final_result.effective_exit_code == 0
+    if not audit_eligible:
+        return False
+    if (
+        final_result.status in {"PASS", "NOT_APPLICABLE"}
+        and final_result.effective_exit_code == 0
+    ):
+        return True
+    # The adapter result remains truthfully nonzero. A separate, complete
+    # baseline-restoration assessment may permit push and PR creation only for
+    # exit 1. Exit 2-5 and protocol/configuration/environment failures never
+    # qualify.
+    return (
+        baseline_restoration_eligible
+        and final_result.status == "BLOCKED_REQUIRED_CHECK"
+        and final_result.effective_exit_code == 1
+        and not final_result.head_changed
+        and not final_result.tree_changed
+        and not final_result.timed_out
+        and not final_result.interrupted
+    )
 
 
 def _terminate_process_group(process: subprocess.Popen[str]) -> None:

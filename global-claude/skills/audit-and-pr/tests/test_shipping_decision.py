@@ -106,6 +106,33 @@ class ShippingDecisionTests(unittest.TestCase):
         result = self.assess(repository_gate_applicable=False)
         self.assertEqual("HIGH", result.testing_confidence)
         self.assertEqual("AUTO_MERGE_ELIGIBLE", result.merge_eligibility)
+        self.assertEqual("NOT_APPLICABLE", result.shipment_classification)
+
+    def test_baseline_restoration_keeps_gate_truth_red_and_requires_manual_merge(self):
+        result = self.assess(
+            repository_gate_passed=False,
+            final_verification_passed=False,
+            baseline_restoration_eligible=True,
+            baseline_restoration_ledger_complete=True,
+        )
+        self.assertEqual("HIGH", result.testing_confidence)
+        self.assertEqual("FAILED_PRE_EXISTING_BASELINE", result.shipment_classification)
+        self.assertEqual("MANUAL_MERGE_REQUIRED", result.merge_eligibility)
+
+    def test_incomplete_baseline_ledger_blocks(self):
+        result = self.assess(
+            repository_gate_passed=False,
+            final_verification_passed=False,
+            baseline_restoration_eligible=True,
+            baseline_restoration_ledger_complete=False,
+        )
+        self.assertEqual("BLOCKED", result.shipment_classification)
+        self.assertEqual("BLOCKED", result.merge_eligibility)
+
+    def test_normal_green_gate_remains_auto_merge_eligible(self):
+        result = self.assess()
+        self.assertEqual("NORMAL_GREEN", result.shipment_classification)
+        self.assertEqual("AUTO_MERGE_ELIGIBLE", result.merge_eligibility)
 
 
 if __name__ == "__main__":
