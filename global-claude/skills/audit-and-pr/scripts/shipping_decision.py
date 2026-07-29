@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Pure decision logic for audit evidence, CI enforcement, and merge eligibility.
+"""Pure decision logic for evidence, CI enforcement, and merge eligibility.
 
-The skill documentation remains authoritative. This helper exists so the three
-independent decisions can be exercised with executable tests instead of being
-only prose.
+The skill documentation remains authoritative. This helper keeps testing
+confidence, CI-enforcement confidence, aggregate gate truth, and merge
+eligibility separate, including the narrow BASELINE_RESTORATION exception.
 """
 
 from __future__ import annotations
@@ -17,6 +17,9 @@ TestingConfidence = Literal["HIGH", "MODERATE", "LOW"]
 CIEnforcementConfidence = Literal["HIGH", "MODERATE", "LOW", "NOT_APPLICABLE"]
 MergeEligibility = Literal[
     "AUTO_MERGE_ELIGIBLE", "MANUAL_MERGE_REQUIRED", "BLOCKED"
+]
+ShipmentClassification = Literal[
+    "NORMAL_GREEN", "FAILED_PRE_EXISTING_BASELINE", "NOT_APPLICABLE", "BLOCKED"
 ]
 
 
@@ -33,6 +36,11 @@ class DecisionInputs:
     repository_gate_bound_to_audited_head: bool = True
     working_tree_clean_after_gate: bool = True
     commit_added_after_gate: bool = False
+
+    # Controlled exception. This must be supplied only after the dedicated
+    # baseline-restoration contract proves every eligibility requirement.
+    baseline_restoration_eligible: bool = False
+    baseline_restoration_ledger_complete: bool = False
 
     # CI architecture and enforcement.
     ci_configured: bool = True
@@ -58,6 +66,7 @@ class DecisionResult:
     testing_confidence: TestingConfidence
     ci_enforcement_confidence: CIEnforcementConfidence
     merge_eligibility: MergeEligibility
+    shipment_classification: ShipmentClassification
     testing_reasons: list[str] = field(default_factory=list)
     ci_enforcement_reasons: list[str] = field(default_factory=list)
     merge_reasons: list[str] = field(default_factory=list)
@@ -67,10 +76,26 @@ class DecisionResult:
 
 
 def assess_decisions(inputs: DecisionInputs) -> DecisionResult:
+    baseline_exception = (
+        inputs.baseline_restoration_eligible
+        and inputs.baseline_restoration_ledger_complete
+        and inputs.repository_gate_applicable
+        and not inputs.repository_gate_passed
+    )
+
+    if not inputs.repository_gate_applicable:
+        shipment_classification: ShipmentClassification = "NOT_APPLICABLE"
+    elif inputs.repository_gate_passed:
+        shipment_classification = "NORMAL_GREEN"
+    elif baseline_exception:
+        shipment_classification = "FAILED_PRE_EXISTING_BASELINE"
+    else:
+        shipment_classification = "BLOCKED"
+
     testing_reasons: list[str] = []
 
     if inputs.required_test_failure:
-        testing_reasons.append("a required test or validation failed")
+        testing_reasons.append("a required change-specific test or validation failed")
     if inputs.material_test_gap:
         testing_reasons.append("a material change-relevant test obligation is uncovered")
     if not inputs.evidence_plan_reconciled:
@@ -78,8 +103,12 @@ def assess_decisions(inputs: DecisionInputs) -> DecisionResult:
     if not inputs.change_relevant_high_risk_checks_executed:
         testing_reasons.append("change-relevant high-risk checks were not directly executed")
     if inputs.repository_gate_applicable:
-        if not inputs.repository_gate_passed:
+        if not inputs.repository_gate_passed and not baseline_exception:
             testing_reasons.append("the repository ship gate did not pass")
+        elif baseline_exception:
+            testing_reasons.append(
+                "the aggregate ship gate remains red only for a complete, proven, tracked pre-existing baseline ledger"
+            )
         if not inputs.repository_gate_bound_to_audited_head:
             testing_reasons.append("the ship result is not bound to the audited HEAD")
         if not inputs.working_tree_clean_after_gate:
@@ -87,7 +116,12 @@ def assess_decisions(inputs: DecisionInputs) -> DecisionResult:
         if inputs.commit_added_after_gate:
             testing_reasons.append("a commit was added after the ship result")
 
-    if testing_reasons:
+    hard_testing_reasons = [
+        reason
+        for reason in testing_reasons
+        if not reason.startswith("the aggregate ship gate remains red only")
+    ]
+    if hard_testing_reasons:
         testing_confidence: TestingConfidence = "LOW"
     elif inputs.noncritical_test_limitation:
         testing_confidence = "MODERATE"
@@ -115,11 +149,13 @@ def assess_decisions(inputs: DecisionInputs) -> DecisionResult:
         ci_reasons.append("required CI enforcement is missing, unknown, or not an accepted documented limitation")
 
     merge_reasons: list[str] = []
-    hard_blockers = []
+    hard_blockers: list[str] = []
     if not inputs.audit_eligible:
         hard_blockers.append("independent audit is not eligible for shipment")
-    if not inputs.final_verification_passed:
+    if not inputs.final_verification_passed and not baseline_exception:
         hard_blockers.append("final exact-HEAD verification did not pass")
+    if inputs.baseline_restoration_eligible and not inputs.baseline_restoration_ledger_complete:
+        hard_blockers.append("baseline-restoration failure ledger is incomplete")
     if inputs.ci_result in {"RED", "UNRESOLVED"}:
         hard_blockers.append(f"CI is {inputs.ci_result}")
     if inputs.ci_result == "NOT_CONFIGURED" and ci_required_or_configured:
@@ -140,6 +176,11 @@ def assess_decisions(inputs: DecisionInputs) -> DecisionResult:
     if hard_blockers:
         merge_eligibility: MergeEligibility = "BLOCKED"
         merge_reasons.extend(hard_blockers)
+    elif baseline_exception:
+        merge_eligibility = "MANUAL_MERGE_REQUIRED"
+        merge_reasons.append(
+            "BASELINE_RESTORATION never permits automatic merge while the aggregate gate is FAILED_PRE_EXISTING_BASELINE"
+        )
     elif testing_confidence == "MODERATE":
         merge_eligibility = "MANUAL_MERGE_REQUIRED"
         merge_reasons.append("testing confidence is MODERATE")
@@ -161,6 +202,7 @@ def assess_decisions(inputs: DecisionInputs) -> DecisionResult:
         testing_confidence=testing_confidence,
         ci_enforcement_confidence=ci_confidence,
         merge_eligibility=merge_eligibility,
+        shipment_classification=shipment_classification,
         testing_reasons=testing_reasons,
         ci_enforcement_reasons=ci_reasons,
         merge_reasons=merge_reasons,

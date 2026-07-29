@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Optional
 
 START_MARKER = "<!-- audit-and-pr:change-summary:start -->"
 END_MARKER = "<!-- audit-and-pr:change-summary:end -->"
@@ -15,6 +15,11 @@ VALID_CONVENTIONS = {
     "CHANGESETS",
     "TOWNCRIER",
     "CUSTOM_FRAGMENT",
+}
+VALID_BASELINE_DISPOSITIONS = {
+    "FIXED_BY_BRANCH",
+    "UNCHANGED_TRACKED_BASELINE",
+    "PRE_EXISTING_NEWLY_UNMASKED",
 }
 
 
@@ -32,12 +37,37 @@ class DeferredFinding:
 
 
 @dataclass(frozen=True)
+class BaselineLedgerRow:
+    failure_identity: str
+    base_result: str
+    branch_result: str
+    owner_issue_url: str
+    disposition: str
+
+
+@dataclass(frozen=True)
+class BaselineRestorationSummary:
+    target_failure_fixed: str
+    canonical_base: str
+    base_commit: str
+    base_command: str
+    base_result: str
+    branch_commit: str
+    branch_command: str
+    branch_result: str
+    aggregate_ship_command: str
+    aggregate_ship_exit_code: int
+    ledger: tuple[BaselineLedgerRow, ...]
+
+
+@dataclass(frozen=True)
 class SummaryInputs:
     final_head: str
     changes: tuple[ChangeEntry, ...]
     user_facing_impacts: tuple[str, ...] = ()
     breaking_changes: tuple[str, ...] = ()
     deferred_findings: tuple[DeferredFinding, ...] = ()
+    baseline_restoration: Optional[BaselineRestorationSummary] = None
 
 
 @dataclass(frozen=True)
@@ -66,6 +96,78 @@ def _clean_items(values: Iterable[str], field: str) -> tuple[str, ...]:
             raise ValueError(f"{field} contains an empty item")
         result.append(cleaned)
     return tuple(result)
+
+
+def _table_cell(value: str, field: str) -> str:
+    cleaned = " ".join(value.split())
+    if not cleaned:
+        raise ValueError(f"{field} is required")
+    return cleaned.replace("|", "\\|")
+
+
+def _render_baseline_restoration(summary: BaselineRestorationSummary) -> list[str]:
+    if summary.aggregate_ship_exit_code == 0:
+        raise ValueError("baseline-restoration summary requires a truthful nonzero aggregate ship result")
+    if summary.aggregate_ship_exit_code != 1:
+        raise ValueError("only aggregate ship exit 1 can be classified as FAILED_PRE_EXISTING_BASELINE")
+    if not summary.ledger:
+        raise ValueError("baseline-restoration summary requires a complete failure ledger")
+
+    target = _table_cell(summary.target_failure_fixed, "target_failure_fixed")
+    canonical_base = _table_cell(summary.canonical_base, "canonical_base")
+    base_commit = _table_cell(summary.base_commit, "base_commit")
+    base_command = _table_cell(summary.base_command, "base_command")
+    base_result = _table_cell(summary.base_result, "base_result")
+    branch_commit = _table_cell(summary.branch_commit, "branch_commit")
+    branch_command = _table_cell(summary.branch_command, "branch_command")
+    branch_result = _table_cell(summary.branch_result, "branch_result")
+    aggregate_command = _table_cell(summary.aggregate_ship_command, "aggregate_ship_command")
+
+    rows: list[BaselineLedgerRow] = []
+    fixed_count = 0
+    for row in summary.ledger:
+        disposition = row.disposition.strip().upper()
+        if disposition not in VALID_BASELINE_DISPOSITIONS:
+            raise ValueError(f"unsupported baseline-restoration disposition: {row.disposition}")
+        identity = _table_cell(row.failure_identity, "failure_identity")
+        base = _table_cell(row.base_result, "base_result")
+        branch = _table_cell(row.branch_result, "branch_result")
+        owner = row.owner_issue_url.strip()
+        if not owner.startswith(("https://", "http://")):
+            raise ValueError("every baseline ledger row requires a canonical issue URL")
+        if disposition == "FIXED_BY_BRANCH":
+            fixed_count += 1
+        rows.append(BaselineLedgerRow(identity, base, branch, owner, disposition))
+    if fixed_count == 0:
+        raise ValueError("baseline-restoration ledger must contain at least one FIXED_BY_BRANCH row")
+
+    lines = [
+        "## Baseline restoration",
+        "",
+        "- Classification: `FAILED_PRE_EXISTING_BASELINE`",
+        f"- Target failure fixed: {target}",
+        f"- Canonical base: `{canonical_base}` at `{base_commit}`",
+        f"- Canonical-base reproduction: `{base_command}` -> {base_result}",
+        f"- Final branch: `{branch_commit}`",
+        f"- Final branch comparison: `{branch_command}` -> {branch_result}",
+        f"- Aggregate ship gate: `{aggregate_command}` -> exit {summary.aggregate_ship_exit_code}",
+        "- New or unattributed failures: NONE",
+        "- Merge: manual maintainer or user merge required; automatic merge is forbidden.",
+        "- Scope: this exception applies only to the recorded ledger and is not precedent for unrelated PRs.",
+        "- Normal green-gate policy resumes when the baseline lane is restored.",
+        "",
+        "### Base-versus-branch failure ledger",
+        "",
+        "| Failure identity | Base result | Branch result | Owner | Disposition |",
+        "|------------------|-------------|---------------|-------|-------------|",
+    ]
+    for row in rows:
+        lines.append(
+            f"| {row.failure_identity} | {row.base_result} | {row.branch_result} | "
+            f"[issue]({row.owner_issue_url}) | `{row.disposition}` |"
+        )
+    lines.append("")
+    return lines
 
 
 def render_managed_summary(inputs: SummaryInputs) -> str:
@@ -135,6 +237,9 @@ def render_managed_summary(inputs: SummaryInputs) -> str:
                 f"- [{finding.priority}: {finding.title}]({finding.issue_url})"
             )
         lines.append("")
+
+    if inputs.baseline_restoration is not None:
+        lines.extend(_render_baseline_restoration(inputs.baseline_restoration))
 
     lines.append(END_MARKER)
     return "\n".join(lines)

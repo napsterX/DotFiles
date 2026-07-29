@@ -228,3 +228,24 @@ repository-wide CI limitation remains after a remediation round. Testing
 confidence follows direct evidence for the exact remediated state. Final High
 confidence remains contingent on the final exact-HEAD ship or legacy gate. CI
 enforcement confidence and merge eligibility are reported separately.
+
+## Baseline-restoration remediation interaction
+
+`BASELINE_RESTORATION` does not expand remediation authority. Only eligible P0/P1
+findings may be changed, and P2/P3 findings remain issue-only.
+
+When retained remediation changes files relevant to the already-red lane or its
+verification machinery:
+
+1. run the normal targeted validation;
+2. rerun only the affected base/branch comparison;
+3. refresh the exact failure ledger;
+4. re-audit the new immutable state;
+5. reject any `NEW_REGRESSION`, `UNATTRIBUTED`, untracked residual, or
+   protected-domain residual.
+
+Do not repeatedly rerun the baseline or branch to obtain a favorable sample. Do
+not weaken, skip, quarantine, reclassify, or extend timeouts for the lane. A
+remediation that changes verification machinery requires the existing heightened
+governance review and invalidates prior comparison evidence when it affects the
+lane.

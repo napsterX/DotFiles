@@ -172,6 +172,80 @@ class PrChangeSummaryTests(unittest.TestCase):
         self.assertTrue(missing.blocks_shipment)
         self.assertTrue(undefined.blocks_shipment)
 
+    def baseline_summary(self, **overrides):
+        values = dict(
+            target_failure_fixed="dashboard test A",
+            canonical_base="origin/staging",
+            base_commit="base123",
+            base_command="./scripts/verify ship --base origin/staging",
+            base_result="exit 1: A, B",
+            branch_commit="head456",
+            branch_command="./scripts/verify ship --base origin/staging",
+            branch_result="exit 1: B",
+            aggregate_ship_command="./scripts/verify ship --base origin/staging",
+            aggregate_ship_exit_code=1,
+            ledger=(
+                pcs.BaselineLedgerRow(
+                    "dashboard test A | expected card | ship",
+                    "FAIL",
+                    "PASS",
+                    "https://example.test/issues/435",
+                    "FIXED_BY_BRANCH",
+                ),
+                pcs.BaselineLedgerRow(
+                    "dashboard test B | missing state | ship",
+                    "FAIL",
+                    "FAIL",
+                    "https://example.test/issues/436",
+                    "UNCHANGED_TRACKED_BASELINE",
+                ),
+            ),
+        )
+        values.update(overrides)
+        return pcs.BaselineRestorationSummary(**values)
+
+    def test_baseline_restoration_pr_body_contains_complete_failure_ledger(self):
+        result = self.render(
+            final_head="head456",
+            changes=(pcs.ChangeEntry("Fixed", "Repaired dashboard test A"),),
+            baseline_restoration=self.baseline_summary(),
+        )
+        self.assertIn("## Baseline restoration", result)
+        self.assertIn("FAILED_PRE_EXISTING_BASELINE", result)
+        self.assertIn("Base-versus-branch failure ledger", result)
+        self.assertIn("FIXED_BY_BRANCH", result)
+        self.assertIn("UNCHANGED_TRACKED_BASELINE", result)
+        self.assertIn("manual maintainer or user merge required", result)
+        self.assertIn("Normal green-gate policy resumes", result)
+
+    def test_baseline_restoration_pr_body_rejects_new_regression_disposition(self):
+        invalid = self.baseline_summary(
+            ledger=(
+                pcs.BaselineLedgerRow(
+                    "new failure",
+                    "PASS",
+                    "FAIL",
+                    "https://example.test/issues/999",
+                    "NEW_REGRESSION",
+                ),
+            )
+        )
+        with self.assertRaises(ValueError):
+            self.render(
+                final_head="head456",
+                changes=(pcs.ChangeEntry("Fixed", "Repaired target"),),
+                baseline_restoration=invalid,
+            )
+
+    def test_baseline_restoration_pr_body_requires_truthful_exit_one(self):
+        invalid = self.baseline_summary(aggregate_ship_exit_code=0)
+        with self.assertRaises(ValueError):
+            self.render(
+                final_head="head456",
+                changes=(pcs.ChangeEntry("Fixed", "Repaired target"),),
+                baseline_restoration=invalid,
+            )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

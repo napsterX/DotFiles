@@ -44,16 +44,21 @@ After the scoped commit:
 - for a valid adapter, run `./scripts/verify ship --base <resolved-base>` as
   defined in `repository-verification-policy.md` and `shipping-gate.md`;
 - for an absent adapter, preserve the legacy final validation workflow;
-- stop on any invalid adapter, failure, contradiction, timeout, interruption,
-  HEAD change, or post-run tree change.
+- in normal mode, stop on any invalid adapter, failure, contradiction, timeout,
+  interruption, HEAD change, or post-run tree change;
+- for a `BASELINE_RESTORATION` candidate, permit final exit `1` to proceed only
+  after `baseline-restoration-policy.md` proves the complete exact-HEAD ledger
+  and classifies the result `FAILED_PRE_EXISTING_BASELINE`.
 
 The Push, Track deferred findings, PR change summary, Existing PR, and New PR
-sections below are forbidden until the applicable final gate passes for the exact
-current `HEAD`.
+sections below are forbidden until the exact current `HEAD` is classified
+`NORMAL_GREEN`, successful legacy `NOT_APPLICABLE`, or fully eligible
+`FAILED_PRE_EXISTING_BASELINE`.
 
 ## Push
 
-Push without force.
+Push without force. A `FAILED_PRE_EXISTING_BASELINE` classification permits the
+push only for the exact audited commit represented by the complete ledger.
 
 If push fails, report and stop. Do not create tracking issues that claim a pushed
 branch state when the push did not succeed.
@@ -142,6 +147,14 @@ any confirmed P2/P3 remains without an open issue link:
 
 Do not change code merely because issue creation is unavailable.
 
+## Baseline-restoration residual ownership
+
+Before a restoration branch is pushed or a PR is created or updated, every residual
+`UNCHANGED_TRACKED_BASELINE` and `PRE_EXISTING_NEWLY_UNMASKED` row must link to a
+canonical open issue. A newly unmasked failure without an issue blocks. After the final exit `1` and independent audit, the skill may search for or create the exact missing canonical owner before push, then rerun the baseline-restoration decision. This narrow issue-tracking step does not permit PR mutation or merge and does not apply to an unproven failure. Do not
+use a broad epic as the owner unless it contains an explicit independently
+closeable task for that exact failure.
+
 ## PR change summary
 
 Follow `pr-change-summary-policy.md` after deferred-finding tracking completes or
@@ -155,6 +168,11 @@ for every deferred P2/P3 finding.
 Do not use commit messages as the sole source. Do not include unsupported claims,
 secrets, private service details, customer data, or sensitive exploit guidance.
 Do not describe deferred work as fixed.
+
+For `FAILED_PRE_EXISTING_BASELINE`, include the exact base and branch commands,
+commits, environment/profile, target fixed failure, complete failure ledger,
+residual issue links, no-new-failure statement, truthful nonzero aggregate ship
+result, scoped-exception statement, and manual-merge requirement.
 
 Detect an existing permanent changelog convention, but do not invent one. The
 presence of `CHANGELOG.md` alone does not authorize editing it. Required tracked
@@ -203,12 +221,20 @@ Include:
 - audit verdict;
 - retained P0/P1 remediation;
 - explicit statement that P2/P3 findings were not modified;
-- final Repository Verification adapter/mode, explicit base, command, and result;
+- final Repository Verification adapter/mode, explicit base, command, and
+  truthful result;
+- operating mode and source (`NORMAL`, explicit restoration, or inferred
+  restoration);
+- when applicable, `FAILED_PRE_EXISTING_BASELINE`, exact base-versus-branch
+  reproduction, complete failure ledger, every residual owner, and manual-merge
+  requirement;
 - exact committed SHA validated by the final gate;
 - each deferred P2/P3 finding and its open GitHub issue link;
 - permanent changelog convention and artifact status when applicable;
 - rollback;
-- repository-specific metadata.
+- repository-specific metadata;
+- when the PR targets a non-default integration branch, the post-merge manual
+  issue-reconciliation plan rather than reliance on closing keywords.
 
 Do not imply reused evidence was freshly rerun.
 

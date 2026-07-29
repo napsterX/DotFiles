@@ -77,6 +77,36 @@ class WorkflowPlanTests(unittest.TestCase):
         self.assertEqual((), result.final_steps)
         self.assertFalse(result.final_ship_required)
 
+    def test_baseline_restoration_builds_comparison_before_audit(self):
+        result = self.plan(operating_mode="BASELINE_RESTORATION")
+        self.assertTrue(result.baseline_comparison_required)
+        self.assertIn("reproduce_canonical_base_once", result.pre_audit_steps)
+        self.assertIn("compare_branch_once", result.pre_audit_steps)
+        self.assertIn("build_baseline_failure_ledger", result.pre_audit_steps)
+
+    def test_baseline_restoration_final_ship_is_still_run_and_classified(self):
+        result = self.plan(
+            operating_mode="BASELINE_RESTORATION",
+            final_scope_committed=True,
+        )
+        self.assertEqual("verify_ship_with_base", result.final_steps[0])
+        self.assertIn("classify_nonzero_ship_against_baseline_ledger", result.final_steps)
+        self.assertIn("require_manual_merge_if_exception_used", result.final_steps)
+
+    def test_baseline_comparison_reruns_only_when_relevant_remediation_changed(self):
+        unchanged = self.plan(
+            operating_mode="BASELINE_RESTORATION",
+            remediation_changed_tracked_files=True,
+            remediation_affects_baseline_comparison=False,
+        )
+        changed = self.plan(
+            operating_mode="BASELINE_RESTORATION",
+            remediation_changed_tracked_files=True,
+            remediation_affects_baseline_comparison=True,
+        )
+        self.assertNotIn("rerun_affected_baseline_comparison", unchanged.remediation_steps)
+        self.assertIn("rerun_affected_baseline_comparison", changed.remediation_steps)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
