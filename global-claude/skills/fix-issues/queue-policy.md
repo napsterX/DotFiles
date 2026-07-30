@@ -50,6 +50,7 @@ The following consume one slot:
 - invalid;
 - duplicate;
 - blocked;
-- failed.
+- failed;
+- timed out.
 
 An issue not selected for investigation consumes no slot.

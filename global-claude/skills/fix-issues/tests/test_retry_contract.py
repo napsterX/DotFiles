@@ -114,6 +114,23 @@ class RetryContractTests(unittest.TestCase):
             module.decide_finalization(True, True),
         )
 
+    def test_12_expired_budget_times_out_issue_before_commit(self):
+        self.assertEqual(
+            "TIMEOUT_ISSUE",
+            module.decide_attempt(self.state(budget_expired=True)),
+        )
+
+    def test_13_worker_budget_status_times_out_issue(self):
+        self.assertEqual(
+            "TIMEOUT_ISSUE",
+            module.decide_attempt(
+                self.state(
+                    attempt_status="time_budget_exceeded",
+                    acceptance_passed=False,
+                )
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

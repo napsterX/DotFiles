@@ -3,14 +3,22 @@
 ## Invocation
 
 - Command:
+- Run ID:
+- Run mode: NEW / RESUMED
+- Journal path:
 - Requested maximum:
 - Effective maximum:
 - Maximum attempts per issue: 3
+- Issue timeout: 60 minutes by default
 - Dynamic model routing: ENABLED
 - Repository:
+- Task worktree:
 - Branch:
 - Starting HEAD:
 - Ending HEAD:
+- Lock key:
+- Lock disposition:
+- Resume validation:
 
 ## Queue Summary
 
@@ -28,6 +36,8 @@ For every selected issue:
 - Title:
 - Priority:
 - Status:
+- Elapsed time:
+- Deadline:
 - Attempts used:
 - Attempt models:
 - Final model rationale:
@@ -36,9 +46,10 @@ For every selected issue:
 - Acceptance proof:
 - Fix summary:
 - Verification:
+- Infrastructure retries:
 - Commit SHA:
 - Issue comment status:
-- Blocker or failure reason:
+- Blocker, timeout, or failure reason:
 
 ## Counts
 
@@ -50,7 +61,9 @@ For every selected issue:
 - Duplicate:
 - Blocked:
 - Failed:
+- Timed out:
 - Total worker attempts:
+- Total infrastructure retries:
 
 ## Commits
 
@@ -83,12 +96,20 @@ List chronologically:
 - Cleanup:
 - Finalization blocker:
 
+## Recovery and Notification
+
+- Last durable transition:
+- Resume required: YES / NO
+- FirstMate notification event:
+- FirstMate delivery: DELIVERED / NOT_AVAILABLE / FAILED_NONBLOCKING
+- Lock released: YES / NO
+
 ## Remaining Queue
 
 - Remaining eligible P3:
 - Remaining eligible P2:
 - Next eligible issues:
-- End reason: LIMIT / QUEUE_EXHAUSTED / STOP_CONDITION
+- End reason: LIMIT / QUEUE_EXHAUSTED / STOP_CONDITION / RESUME_REQUIRED
 
 ## Manual Actions
 

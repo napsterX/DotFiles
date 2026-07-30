@@ -103,6 +103,37 @@ class FixIssuesContractTests(unittest.TestCase):
             self.assertTrue(module.consumes_slot(status), status)
         self.assertFalse(module.consumes_slot("unselected"))
 
+    def test_21_default_invocation_has_sixty_minute_issue_timeout(self):
+        invocation = module.parse_invocation([])
+        self.assertEqual("new", invocation.mode)
+        self.assertEqual(1, invocation.maximum_issue_count)
+        self.assertEqual(60, invocation.issue_timeout_minutes)
+
+    def test_22_timeout_override_is_supported(self):
+        invocation = module.parse_invocation(["5", "--issue-timeout-minutes", "45"])
+        self.assertEqual(5, invocation.maximum_issue_count)
+        self.assertEqual(45, invocation.issue_timeout_minutes)
+
+    def test_23_timeout_below_minimum_is_rejected(self):
+        with self.assertRaises(module.ContractError):
+            module.parse_invocation(["--issue-timeout-minutes", "4"])
+
+    def test_24_timeout_above_cap_is_rejected(self):
+        with self.assertRaises(module.ContractError):
+            module.parse_invocation(["--issue-timeout-minutes", "241"])
+
+    def test_25_resume_latest_run(self):
+        invocation = module.parse_invocation(["resume"])
+        self.assertEqual("resume", invocation.mode)
+        self.assertIsNone(invocation.run_id)
+
+    def test_26_resume_specific_run(self):
+        invocation = module.parse_invocation(["resume", "run-123"])
+        self.assertEqual("run-123", invocation.run_id)
+
+    def test_27_timed_out_issue_consumes_slot(self):
+        self.assertTrue(module.consumes_slot("timed_out"))
+
 
 if __name__ == "__main__":
     unittest.main()

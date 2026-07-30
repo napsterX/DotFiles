@@ -11,6 +11,9 @@ from typing import Iterable, Sequence
 
 DEFAULT_MAXIMUM = 1
 MAXIMUM_CAP = 10
+DEFAULT_ISSUE_TIMEOUT_MINUTES = 60
+MIN_ISSUE_TIMEOUT_MINUTES = 5
+MAX_ISSUE_TIMEOUT_MINUTES = 240
 PROCESSED_STATUSES = {
     "fixed",
     "already_resolved",
@@ -18,6 +21,7 @@ PROCESSED_STATUSES = {
     "duplicate",
     "blocked",
     "failed",
+    "timed_out",
 }
 
 P2_LABELS = {"p2", "priority:p2", "priority/p2"}
@@ -48,6 +52,57 @@ def parse_maximum(arguments: Sequence[str]) -> int:
             f"maximum_issue_count exceeds the supported cap of {MAXIMUM_CAP}"
         )
     return value
+
+
+@dataclass(frozen=True)
+class Invocation:
+    mode: str
+    maximum_issue_count: int | None
+    issue_timeout_minutes: int
+    run_id: str | None = None
+
+
+def parse_invocation(arguments: Sequence[str]) -> Invocation:
+    if arguments and arguments[0] == "resume":
+        if len(arguments) > 2:
+            raise ContractError("resume accepts at most one optional run_id")
+        return Invocation(
+            mode="resume",
+            maximum_issue_count=None,
+            issue_timeout_minutes=DEFAULT_ISSUE_TIMEOUT_MINUTES,
+            run_id=arguments[1] if len(arguments) == 2 else None,
+        )
+
+    maximum: int | None = None
+    timeout = DEFAULT_ISSUE_TIMEOUT_MINUTES
+    index = 0
+    while index < len(arguments):
+        raw = arguments[index]
+        if raw == "--issue-timeout-minutes":
+            index += 1
+            if index >= len(arguments):
+                raise ContractError("--issue-timeout-minutes requires a value")
+            timeout_raw = arguments[index]
+            if not timeout_raw.isascii() or not timeout_raw.isdigit():
+                raise ContractError("issue timeout must be a positive integer")
+            timeout = int(timeout_raw)
+            if not MIN_ISSUE_TIMEOUT_MINUTES <= timeout <= MAX_ISSUE_TIMEOUT_MINUTES:
+                raise ContractError(
+                    "issue timeout must be between "
+                    f"{MIN_ISSUE_TIMEOUT_MINUTES} and {MAX_ISSUE_TIMEOUT_MINUTES} minutes"
+                )
+        elif raw.startswith("--"):
+            raise ContractError(f"unsupported argument: {raw}")
+        elif maximum is None:
+            maximum = parse_maximum([raw])
+        else:
+            raise ContractError("expected only one maximum_issue_count argument")
+        index += 1
+    return Invocation(
+        mode="new",
+        maximum_issue_count=DEFAULT_MAXIMUM if maximum is None else maximum,
+        issue_timeout_minutes=timeout,
+    )
 
 
 def normalize_label(label: str) -> str:
@@ -141,6 +196,9 @@ def _main() -> int:
     args_parser = subparsers.add_parser("validate-args")
     args_parser.add_argument("arguments", nargs="*")
 
+    invocation_parser = subparsers.add_parser("validate-invocation")
+    invocation_parser.add_argument("arguments", nargs="*")
+
     queue_parser = subparsers.add_parser("select-queue")
     queue_parser.add_argument("--maximum", type=int, required=True)
 
@@ -148,6 +206,10 @@ def _main() -> int:
     try:
         if parsed.command == "validate-args":
             print(parse_maximum(parsed.arguments))
+            return 0
+        if parsed.command == "validate-invocation":
+            invocation = parse_invocation(parsed.arguments)
+            print(json.dumps(invocation.__dict__, indent=2, sort_keys=True))
             return 0
 
         payload = json.load(__import__("sys").stdin)

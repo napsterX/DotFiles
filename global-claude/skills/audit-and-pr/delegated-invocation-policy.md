@@ -18,7 +18,8 @@ GitHub mutation, or audit work.
 
 The caller must provide an absolute path to a JSON manifest with:
 
-- `schema_version: 1`;
+- `schema_version: 1` for legacy callers or `schema_version: 2` for durable
+  `/fix-issues` runs;
 - `source_skill: fix-issues`;
 - `request: audit-and-pr-finalization`;
 - absolute repository root;
@@ -29,7 +30,9 @@ The caller must provide an absolute path to a JSON manifest with:
 - one exact retained commit SHA per fixed issue;
 - all selected issue outcomes;
 - cumulative verification evidence;
-- creation timestamp.
+- creation timestamp;
+- for schema 2: run ID, absolute run-journal path, task worktree, Git common
+  directory, configured issue timeout, and timed-out outcomes.
 
 Validate using `scripts/delegated_invocation.py` or equivalent deterministic
 logic.
