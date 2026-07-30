@@ -4,16 +4,18 @@
 
 Choose the implementation model after the orchestrator has fetched one eligible
 issue and inspected enough repository context to understand risk, ambiguity, and
-change surface. The router chooses; deterministic helpers validate the decision
-but do not make it.
+change surface. Re-evaluate routing before every retry. The router chooses;
+deterministic helpers validate the decision but do not make it.
 
 ## Required routing record
 
 Record:
 
 - issue number;
+- attempt number;
 - implementation expected: yes or no;
 - selected model;
+- previous model when retrying;
 - risk: low, medium, high, or critical;
 - complexity: localized, multi-file, cross-module, or cross-system;
 - sensitive domains involved;
@@ -28,65 +30,55 @@ The selected model must be explicit. `inherit` is invalid.
 
 ### Sonnet
 
-Use by default when the defect is scoped, acceptance criteria are clear, the
+Use by default when the work is scoped, acceptance criteria are clear, the
 likely change is localized, repository patterns are established, and no
 high-impact boundary is involved.
-
-Typical signals:
-
-- one component or a small number of related files;
-- deterministic reproduction;
-- ordinary application logic;
-- established test pattern;
-- low architectural ambiguity.
 
 ### Opus
 
 Use when correctness depends on deeper reasoning or the change can damage a
-material boundary.
-
-Typical signals:
-
-- authorization or authentication;
-- tenant isolation;
-- security-sensitive code;
-- migrations or irreversible data changes;
-- concurrency, retries, idempotency, or distributed state;
-- payment or financial behavior;
-- cross-module behavior;
-- unclear root cause with several plausible explanations;
-- compatibility or public-contract risk.
+material boundary, including authorization, tenancy, security, migrations, data
+integrity, concurrency, retries, payments, compatibility, or cross-module state.
 
 ### Fable
 
 Use selectively when deep architecture validation or cross-system reasoning has
-a clear advantage over routine implementation models.
-
-Typical signals:
-
-- high-impact ambiguous architecture decision embedded in the defect;
-- several systems or contracts must be reconciled;
-- adversarial design reasoning is central to choosing the safe fix;
-- a routine scoped implementation model would materially increase the chance of
-  selecting the wrong design.
-
-Do not choose Fable merely because the issue is large or interesting.
+a clear advantage and choosing the correct design is the central difficulty.
+Do not choose Fable merely because the issue is large.
 
 ### Haiku
 
 Do not use Haiku for source-code implementation. The orchestrator may use cheap
-read-only mechanisms for queue metadata, but a selected implementation worker
-must use Sonnet, Opus, or Fable.
+read-only mechanisms for queue metadata, but implementation workers must use
+Sonnet, Opus, or Fable.
 
 ## Proportionality
 
-Do not choose a model solely from P2/P3 priority, line count, or cost. Choose the
+Do not choose a model solely from P3/P2 priority, line count, or cost. Choose the
 least expensive model that is still adequate for the actual risk and reasoning
-burden. Never downgrade when doing so materially increases implementation risk.
+burden. Never downgrade merely to save tokens when doing so materially increases
+implementation risk.
+
+## Retry routing
+
+A retry must not be a blind repeat.
+
+- Keep the same model when the first failure is mechanical, the root cause is
+  still clear, and the new plan materially changes the implementation or proof.
+- Escalate Sonnet to Opus when the failure reveals ambiguity, cross-module
+  coupling, concurrency, security, data, or contract risk.
+- Use Fable only when architecture selection or cross-system reconciliation is
+  now the main blocker.
+- Do not downgrade after a failed attempt unless the previous model was
+  unavailable before source edits and a new explicit decision proves a lower
+  model remains adequate.
+
+Record the exact first causal failure and what will be different in the next
+attempt.
 
 ## Dispatch
 
-Invoke `bug-fix-worker` with the Agent tool and an explicit per-invocation
+Invoke `issue-fix-worker` with the Agent tool and an explicit per-invocation
 `model` parameter matching the routing decision.
 
 The worker frontmatter default does not replace this requirement.
@@ -97,11 +89,11 @@ other than `inherit` can override the per-invocation choice; treat that as
 `MODEL ROUTING BLOCKED` unless the resulting model is explicitly known to match
 the selected model.
 
-If platform or organization model restrictions prevent the selected model:
+If platform or organization restrictions prevent the selected model:
 
 1. stop before source edits from that dispatch;
 2. make a new explicit routing decision using the best available adequate model;
-3. record the unavailable model and the replacement rationale;
+3. record the unavailable model and replacement rationale;
 4. never allow an implicit inherited fallback.
 
 If no adequate available model remains, classify the issue `blocked`.

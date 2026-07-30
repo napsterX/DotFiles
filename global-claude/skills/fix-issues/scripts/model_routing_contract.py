@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate model-selected /fix-bugs routing decisions without choosing a model."""
+"""Validate model-selected /fix-issues routing decisions without choosing a model."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from dataclasses import dataclass
 ALLOWED_MODELS = {"sonnet", "opus", "fable"}
 ALLOWED_RISK = {"low", "medium", "high", "critical"}
 ALLOWED_COMPLEXITY = {"localized", "multi-file", "cross-module", "cross-system"}
+MODEL_RANK = {"sonnet": 1, "opus": 2, "fable": 3}
 
 
 class RoutingError(ValueError):
@@ -20,32 +21,39 @@ class RoutingError(ValueError):
 @dataclass(frozen=True)
 class RoutingDecision:
     issue: int
+    attempt: int
     selected_model: str
     risk: str
     complexity: str
     rationale: str
     alternatives_considered: tuple[str, ...]
     implementation_expected: bool = True
+    previous_model: str | None = None
 
     @classmethod
     def from_mapping(cls, raw: dict) -> "RoutingDecision":
         alternatives = raw.get("alternatives_considered", [])
         if not isinstance(alternatives, list):
             raise RoutingError("alternatives_considered must be a list")
+        previous = raw.get("previous_model")
         return cls(
             issue=int(raw["issue"]),
+            attempt=int(raw.get("attempt", 1)),
             selected_model=str(raw["selected_model"]).strip().lower(),
             risk=str(raw["risk"]).strip().lower(),
             complexity=str(raw["complexity"]).strip().lower(),
             rationale=str(raw["rationale"]).strip(),
             alternatives_considered=tuple(str(item).strip().lower() for item in alternatives),
             implementation_expected=bool(raw.get("implementation_expected", True)),
+            previous_model=(str(previous).strip().lower() if previous else None),
         )
 
 
 def validate_decision(decision: RoutingDecision) -> None:
     if decision.issue <= 0:
         raise RoutingError("issue must be a positive integer")
+    if decision.attempt < 1 or decision.attempt > 3:
+        raise RoutingError("attempt must be between 1 and 3")
     if decision.selected_model not in ALLOWED_MODELS:
         raise RoutingError(
             "selected_model must be one of: sonnet, opus, fable; inherit and haiku are prohibited"
@@ -65,6 +73,13 @@ def validate_decision(decision: RoutingDecision) -> None:
         )
     if decision.selected_model in decision.alternatives_considered:
         raise RoutingError("selected model must not be listed as a rejected alternative")
+    if decision.previous_model:
+        if decision.previous_model not in ALLOWED_MODELS:
+            raise RoutingError("previous_model must be sonnet, opus, or fable")
+        if decision.attempt == 1:
+            raise RoutingError("attempt 1 must not declare previous_model")
+        if MODEL_RANK[decision.selected_model] < MODEL_RANK[decision.previous_model]:
+            raise RoutingError("retry routing must not silently downgrade the model")
 
 
 def override_status(selected_model: str, override: str | None) -> str:
@@ -86,9 +101,10 @@ def dispatch_record(decision: RoutingDecision) -> dict[str, object]:
             "CLAUDE_CODE_SUBAGENT_MODEL conflicts with the selected per-issue model"
         )
     return {
-        "subagent_type": "bug-fix-worker",
+        "subagent_type": "issue-fix-worker",
         "model": decision.selected_model,
         "issue": decision.issue,
+        "attempt": decision.attempt,
         "routing_status": status,
     }
 

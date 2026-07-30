@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic contracts for /fix-bugs argument and queue handling."""
+"""Deterministic contracts for /fix-issues argument and queue handling."""
 
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ PROCESSED_STATUSES = {
     "failed",
 }
 
-BUG_LABELS = {"bug", "type:bug", "type/bug", "kind:bug"}
 P2_LABELS = {"p2", "priority:p2", "priority/p2"}
 P3_LABELS = {"p3", "priority:p3", "priority/p3"}
 DUPLICATE_LABELS = {"duplicate", "status:duplicate", "status/duplicate"}
@@ -65,10 +64,10 @@ def classify_priority(labels: Iterable[str]) -> str | None:
     has_p3 = bool(values & P3_LABELS)
     if has_p2 and has_p3:
         raise ContractError("issue has conflicting P2 and P3 labels")
-    if has_p2:
-        return "P2"
     if has_p3:
         return "P3"
+    if has_p2:
+        return "P2"
     return None
 
 
@@ -104,11 +103,9 @@ def is_eligible(issue: Issue) -> bool:
     if issue.state.strip().lower() != "open":
         return False
     values = normalized_labels(issue.labels)
-    if not values & BUG_LABELS:
-        return False
     if values & (DUPLICATE_LABELS | INVALID_LABELS):
         return False
-    return classify_priority(issue.labels) in {"P2", "P3"}
+    return classify_priority(issue.labels) in {"P3", "P2"}
 
 
 def _parse_created_at(value: str) -> datetime:
@@ -125,7 +122,7 @@ def select_queue(issues: Iterable[Issue], maximum: int) -> list[Issue]:
     eligible = [issue for issue in issues if is_eligible(issue)]
     eligible.sort(
         key=lambda issue: (
-            0 if classify_priority(issue.labels) == "P2" else 1,
+            0 if classify_priority(issue.labels) == "P3" else 1,
             _parse_created_at(issue.created_at),
             issue.number,
         )

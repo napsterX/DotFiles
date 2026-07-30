@@ -1,8 +1,7 @@
 ---
 name: audit-and-pr
-description: Run deterministic preflight, an independent risk-adaptive parallel audit, bounded P0/P1 remediation, P2/P3 tracking, final exact-HEAD verification, controlled BASELINE_RESTORATION comparison when explicitly requested or conclusively established, PR generation, CI, merge gating, and cleanup.
+description: Run deterministic preflight, an independent risk-adaptive parallel audit, bounded P0/P1 remediation, P2/P3 tracking, final exact-HEAD verification, controlled BASELINE_RESTORATION comparison, PR generation, CI, merge gating, and cleanup. Accept direct user invocation or a validated fix-issues finalization manifest.
 user-invocable: true
-disable-model-invocation: true
 ---
 
 # Audit and PR
@@ -25,6 +24,8 @@ reporting.
 
 Read:
 
+- `delegated-invocation-policy.md`
+- `worktree-execution-policy.md`
 - `repository-verification-policy.md`
 - `baseline-restoration-policy.md`
 - `parallel-audit-policy.md`
@@ -37,6 +38,8 @@ Read:
 
 Executable references when helpers are supported:
 
+- `scripts/delegated_invocation.py` — validation of trusted `/fix-issues` finalization manifests before model-initiated invocation;
+- `scripts/worktree_context.py` — registered-worktree resolution, repository-family validation, and safe execution-mode classification;
 - `scripts/repository_verification.py` — safe `doctor`, `fast`, and final `ship`
   invocation and evidence capture;
 - `scripts/baseline_restoration.py` — exact failure-ledger classification and
@@ -49,6 +52,20 @@ Executable references when helpers are supported:
   GitHub tracking decisions for confirmed P2/P3 findings;
 - `scripts/pr_change_summary.py` — deterministic managed PR-summary rendering,
   safe existing-body replacement, and permanent-changelog action decisions.
+
+## Invocation authorization
+
+Direct user invocation is authorized through `/audit-and-pr` and the existing
+`baseline-restoration` argument.
+
+Model-initiated invocation is permitted only for finalization delegated by
+`/fix-issues`. It must include a manifest satisfying
+`delegated-invocation-policy.md`. Validate the manifest against live `TASK_ROOT`,
+branch, and exact HEAD before deterministic preflight or any side effect.
+
+Any other model-initiated invocation must stop as
+`DELEGATED_INVOCATION_REJECTED`. Do not infer authorization merely because a
+branch contains several issue commits or appears ready for review.
 
 ## Core guarantees
 
@@ -101,6 +118,8 @@ Never:
 - conceal auto-fixes;
 - include unrelated work;
 - use destructive Git cleanup;
+- call `EnterWorktree` for an external registered Git worktree;
+- create a duplicate Claude-managed worktree merely to bypass a switching-tool limitation;
 - force-delete an unmerged branch.
 
 ## Progress updates
@@ -155,6 +174,20 @@ P2/P3 findings never enter the remediation writer.
 - Do not silently substitute model or effort.
 
 ## Establish repository, objective, scope, and base
+
+Follow `worktree-execution-policy.md` before any repository operation. Resolve
+and pin one registered audited worktree as `TASK_ROOT`; record the session
+checkout separately as `INVOCATION_ROOT`. Do not call Claude Code
+`EnterWorktree` for an external sibling or otherwise externally managed Git
+worktree. Operate directly against its absolute path using command working
+directories and argument-safe `git -C` calls. A failed or unsupported switching
+tool is not a reason to create a duplicate worktree.
+
+Every read, diff, deterministic helper, audit packet, remediation edit,
+validation command, commit, push, PR-head assertion, merge check, and cleanup
+operation must remain bound to `TASK_ROOT`. Revalidate that registration, Git
+common-directory identity, branch, and HEAD remain correct before mutations and
+after asynchronous work.
 
 Determine:
 

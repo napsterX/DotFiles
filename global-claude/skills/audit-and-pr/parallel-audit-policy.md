@@ -190,3 +190,9 @@ mutate GitHub independently.
 - A worker timeout or interruption is an audit-process blocker for that lane.
 - Any tracked-file mutation during read-only parallel work invalidates the packet
   and stops the parallel audit.
+
+## Worktree binding
+
+Every lane receives the same canonical `TASK_ROOT` and immutable HEAD. Lanes do
+not attempt worktree switching. External registered worktrees are inspected by
+absolute path, and no lane may call `EnterWorktree` or create another worktree.

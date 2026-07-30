@@ -121,7 +121,7 @@ independently closeable. The audit verdict is `PASS WITH GAPS`, not `PASS`.
 
 ## Single-writer rule
 
-Use exactly one remediation writer against one worktree. Parallel audit lanes
+Use exactly one remediation writer against the pinned `TASK_ROOT` worktree. Parallel audit lanes
 may review the result, but no second worker may edit files, generate overlapping
 outputs, commit, or mutate Git state concurrently.
 

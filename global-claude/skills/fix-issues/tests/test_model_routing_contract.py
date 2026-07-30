@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import importlib.util
 import os
-import unittest
 import sys
+import unittest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -20,12 +20,14 @@ class ModelRoutingContractTests(unittest.TestCase):
     def decision(self, model="sonnet", **overrides):
         values = dict(
             issue=42,
+            attempt=1,
             selected_model=model,
             risk="medium",
             complexity="localized",
             rationale="Scoped implementation with clear behavior and established tests.",
             alternatives_considered=("opus",),
             implementation_expected=True,
+            previous_model=None,
         )
         values.update(overrides)
         return module.RoutingDecision(**values)
@@ -55,11 +57,12 @@ class ModelRoutingContractTests(unittest.TestCase):
         with self.assertRaises(module.RoutingError):
             module.validate_decision(self.decision(alternatives_considered=("sonnet",)))
 
-    def test_08_dispatch_contains_explicit_model(self):
+    def test_08_dispatch_contains_explicit_model_and_attempt(self):
         with patch.dict(os.environ, {}, clear=True):
             result = module.dispatch_record(self.decision("opus", alternatives_considered=("sonnet",)))
-        self.assertEqual("bug-fix-worker", result["subagent_type"])
+        self.assertEqual("issue-fix-worker", result["subagent_type"])
         self.assertEqual("opus", result["model"])
+        self.assertEqual(1, result["attempt"])
 
     def test_09_matching_environment_override_is_allowed(self):
         with patch.dict(os.environ, {"CLAUDE_CODE_SUBAGENT_MODEL": "opus"}, clear=True):
@@ -79,6 +82,31 @@ class ModelRoutingContractTests(unittest.TestCase):
     def test_12_invalid_risk_is_rejected(self):
         with self.assertRaises(module.RoutingError):
             module.validate_decision(self.decision(risk="unknown"))
+
+    def test_13_retry_may_escalate(self):
+        module.validate_decision(
+            self.decision(
+                "opus",
+                attempt=2,
+                previous_model="sonnet",
+                alternatives_considered=("fable",),
+            )
+        )
+
+    def test_14_retry_cannot_silently_downgrade(self):
+        with self.assertRaises(module.RoutingError):
+            module.validate_decision(
+                self.decision(
+                    "sonnet",
+                    attempt=2,
+                    previous_model="opus",
+                    alternatives_considered=("fable",),
+                )
+            )
+
+    def test_15_first_attempt_cannot_have_previous_model(self):
+        with self.assertRaises(module.RoutingError):
+            module.validate_decision(self.decision(previous_model="sonnet"))
 
 
 if __name__ == "__main__":
