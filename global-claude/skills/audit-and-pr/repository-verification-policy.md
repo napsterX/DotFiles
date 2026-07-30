@@ -47,8 +47,11 @@ Supported invocations in this skill are:
 ```
 
 Use `scripts/repository_verification.py` for safe invocation and evidence
-capture when executable helpers are available. Pass repository path, profile,
-resolved base, timeout, and changed paths as separate arguments.
+capture when executable helpers are available. Pass the pinned `TASK_ROOT`,
+profile, resolved base, timeout, and changed paths as separate arguments. The
+helper or command runner must use `TASK_ROOT` as its working directory. Never
+run the adapter from the invocation checkout when another registered worktree is
+the audited target.
 
 ### Adapter absent
 

@@ -38,7 +38,7 @@ Prove all of the following:
 
 1. Resolve the canonical audit base using the normal base-resolution policy.
 2. Reproduce the relevant mandatory lane on an untouched checkout or disposable
-   detached worktree at that exact base commit.
+   detached worktree at that exact base commit, pinned separately as `BASELINE_ROOT` and operated directly without `EnterWorktree`.
 3. Use the repository's own authoritative verification adapter or documented
    mandatory lane, with the same profile, material environment, and dependency
    conditions used for the branch comparison.

@@ -5,19 +5,19 @@
 - Command:
 - Requested maximum:
 - Effective maximum:
+- Maximum attempts per issue: 3
 - Dynamic model routing: ENABLED
 - Repository:
 - Branch:
 - Starting HEAD:
 - Ending HEAD:
-- Commits: LOCAL_ONLY or PUSHED_UNDER_EXPLICIT_AUTHORIZATION
 
 ## Queue Summary
 
 - Eligible issues found:
 - Bounded issues selected:
-- P2 selected:
 - P3 selected:
+- P2 selected:
 - Selection order:
 
 ## Outcomes
@@ -28,10 +28,12 @@ For every selected issue:
 - Title:
 - Priority:
 - Status:
-- Selected model:
-- Model rationale:
+- Attempts used:
+- Attempt models:
+- Final model rationale:
 - Runtime model evidence:
 - Root cause:
+- Acceptance proof:
 - Fix summary:
 - Verification:
 - Commit SHA:
@@ -48,6 +50,7 @@ For every selected issue:
 - Duplicate:
 - Blocked:
 - Failed:
+- Total worker attempts:
 
 ## Commits
 
@@ -60,6 +63,7 @@ List chronologically:
 ## Verification
 
 - Issue-level commands:
+- Retry-specific evidence:
 - Cumulative commands:
 - Passed checks:
 - Failed checks:
@@ -67,12 +71,24 @@ List chronologically:
 - Pre-existing failures:
 - Introduced failures:
 
+## Audit and PR Finalization
+
+- Manifest:
+- Delegation attempted: YES / NO
+- `/audit-and-pr` result:
+- Audit verdict:
+- PR:
+- CI:
+- Merge disposition:
+- Cleanup:
+- Finalization blocker:
+
 ## Remaining Queue
 
-- Remaining eligible P2:
 - Remaining eligible P3:
+- Remaining eligible P2:
 - Next eligible issues:
-- End reason: LIMIT, QUEUE_EXHAUSTED, or STOP_CONDITION
+- End reason: LIMIT / QUEUE_EXHAUSTED / STOP_CONDITION
 
 ## Manual Actions
 

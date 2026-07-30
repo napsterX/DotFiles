@@ -11,12 +11,32 @@ Audit Model:
 Objective:
 <one sentence>
 
+Invocation Source:
+- Type: DIRECT_USER / FIX_ISSUES_DELEGATED
+- Manifest: <absolute path> / NOT_APPLICABLE
+- Manifest status: VALID / REJECTED / NOT_APPLICABLE
+- Source skill: fix-issues / NOT_APPLICABLE
+- Batch starting HEAD: <sha> / NOT_APPLICABLE
+- Delegated final HEAD: <sha> / NOT_APPLICABLE
+- Fixed issues: <numbers> / NOT_APPLICABLE
+
 Operating Mode:
 - Mode: NORMAL / BASELINE_RESTORATION
 - Source: DEFAULT / EXPLICIT / INFERRED
 - Target already-red lane: <name or NOT_APPLICABLE>
 - Target failure: <identity or NOT_APPLICABLE>
 - Classification announced before remote mutation: YES / NO / NOT_APPLICABLE
+
+Worktree Execution:
+- Invocation root:
+- Task root:
+- Git common directory:
+- Target branch:
+- Initial target HEAD:
+- Worktree class: CURRENT / CLAUDE_MANAGED / EXTERNAL_REGISTERED
+- Execution mode: IN_PLACE / ENTERWORKTREE / PINNED_TASK_ROOT
+- EnterWorktree attempted: YES / NO
+- Cross-worktree safety: PASS / BLOCKED
 
 Audited Scope:
 - Repository:
