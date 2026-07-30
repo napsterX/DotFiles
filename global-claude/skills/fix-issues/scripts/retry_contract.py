@@ -16,6 +16,7 @@ FINAL_ATTEMPT_STATUSES = {
     "blocked",
     "retryable_failed",
     "terminal_failed",
+    "time_budget_exceeded",
 }
 
 
@@ -34,6 +35,7 @@ class RetryState:
     acceptance_passed: bool = False
     at_least_one_fix: bool = False
     cumulative_safe: bool = False
+    budget_expired: bool = False
 
 
 def decide_attempt(state: RetryState) -> str:
@@ -43,6 +45,8 @@ def decide_attempt(state: RetryState) -> str:
         raise RetryError(f"unsupported attempt_status: {state.attempt_status}")
     if not (state.repository_safe and state.head_unchanged and state.worktree_attributable):
         return "STOP_BATCH_UNSAFE_STATE"
+    if state.budget_expired or state.attempt_status == "time_budget_exceeded":
+        return "TIMEOUT_ISSUE"
 
     if state.attempt_status == "candidate_ready":
         return "COMMIT" if state.acceptance_passed else (
@@ -84,6 +88,7 @@ def _main() -> int:
                 worktree_attributable=bool(raw["worktree_attributable"]),
                 material_new_plan=bool(raw.get("material_new_plan", False)),
                 acceptance_passed=bool(raw.get("acceptance_passed", False)),
+                budget_expired=bool(raw.get("budget_expired", False)),
             )
             print(decide_attempt(state))
         else:

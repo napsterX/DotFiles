@@ -86,6 +86,33 @@ class DelegatedInvocationTests(unittest.TestCase):
         with self.assertRaises(module.DelegationError):
             module.validate_manifest(self.manifest(outcomes=[{"number": 13, "status": "fixed"}]))
 
+    def test_08_schema_two_run_journal_is_accepted(self):
+        journal = Path(self.temp.name) / "runs" / "run-state.json"
+        journal.parent.mkdir()
+        journal.write_text("{}", encoding="utf-8")
+        common = Path(self.temp.name) / "common.git"
+        common.mkdir()
+        manifest = self.manifest(
+            schema_version=2,
+            run_id="run-123",
+            run_journal=str(journal),
+            task_worktree=str(self.repo),
+            git_common_dir=str(common),
+            issue_timeout_minutes=60,
+        )
+        result = module.validate_manifest(
+            manifest,
+            current_repository=str(self.repo),
+            current_branch="issue/batch-p3-p2",
+            current_head=B,
+        )
+        self.assertEqual(2, result["schema_version"])
+        self.assertEqual("run-123", result["run_id"])
+
+    def test_09_schema_two_requires_run_identity(self):
+        with self.assertRaises(module.DelegationError):
+            module.validate_manifest(self.manifest(schema_version=2))
+
 
 if __name__ == "__main__":
     unittest.main()

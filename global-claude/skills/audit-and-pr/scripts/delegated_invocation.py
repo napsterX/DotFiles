@@ -30,14 +30,26 @@ def validate_manifest(
     current_branch: str | None = None,
     current_head: str | None = None,
 ) -> dict[str, object]:
-    if raw.get("schema_version") != 1:
-        raise DelegationError("schema_version must be 1")
+    schema_version = int(raw.get("schema_version", 0))
+    if schema_version not in {1, 2}:
+        raise DelegationError("schema_version must be 1 or 2")
     if raw.get("source_skill") != "fix-issues":
         raise DelegationError("source_skill must be fix-issues")
     if raw.get("request") != "audit-and-pr-finalization":
         raise DelegationError("request must be audit-and-pr-finalization")
 
     repository = Path(str(raw.get("repository_root", ""))).expanduser()
+    if schema_version == 2:
+        run_id = str(raw.get("run_id", "")).strip()
+        journal_path = Path(str(raw.get("run_journal", ""))).expanduser()
+        task_worktree = Path(str(raw.get("task_worktree", ""))).expanduser()
+        git_common_dir = Path(str(raw.get("git_common_dir", ""))).expanduser()
+        if not run_id or any(ch in run_id for ch in "\n\r\0"):
+            raise DelegationError("schema 2 run_id is missing or invalid")
+        if not journal_path.is_absolute():
+            raise DelegationError("schema 2 run_journal must be absolute")
+        if not task_worktree.is_absolute() or not git_common_dir.is_absolute():
+            raise DelegationError("schema 2 task_worktree and git_common_dir must be absolute")
     if not repository.is_absolute():
         raise DelegationError("repository_root must be absolute")
     branch = str(raw.get("branch", "")).strip()
@@ -97,8 +109,9 @@ def validate_manifest(
     if current_head is not None and ending_head != _require_sha(current_head, "current_head"):
         raise DelegationError("manifest ending_head does not match live HEAD")
 
-    return {
+    result = {
         "status": "VALID",
+        "schema_version": schema_version,
         "source_skill": "fix-issues",
         "repository_root": str(repository.resolve()),
         "branch": branch,
@@ -107,6 +120,14 @@ def validate_manifest(
         "fixed_issues": normalized_fixed,
         "fixed_count": len(normalized_fixed),
     }
+    if schema_version == 2:
+        result.update({
+            "run_id": run_id,
+            "run_journal": str(journal_path.resolve()),
+            "task_worktree": str(task_worktree.resolve()),
+            "git_common_dir": str(git_common_dir.resolve()),
+        })
+    return result
 
 
 def _main() -> int:
