@@ -64,8 +64,8 @@ The manifest does not authorize:
 
 - skipping deterministic preflight;
 - trusting issue-level verification without review;
-- weakening P0/P1 remediation rules;
-- omitting P2/P3 finding tracking;
+- weakening P0/P1 acceptance rules;
+- bypassing severity/disposition validation, the issue-creation gate, or required issue tracking;
 - bypassing final ship, CI, branch protection, merge policy, or cleanup;
 - automatically entering baseline-restoration mode.
 

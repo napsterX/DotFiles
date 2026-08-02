@@ -82,11 +82,15 @@ remediation, targeted validation, evidence reconciliation, and re-audit rounds.
 
 - verdict is FAIL;
 - result is AUDIT BLOCKED;
-- any P0 remains;
-- any P1 remains;
-- a finding required by the current objective or acceptance criteria is being
-  deferred as P2/P3;
-- any confirmed P2/P3 lacks a complete issue-ready tracking record;
+- any unresolved P0 remains;
+- any unresolved P1 remains;
+- any finding required for the current objective or safe acceptance is not
+  `FIX_NOW` and successfully reverified;
+- any material finding lacks a valid severity plus disposition;
+- any `BLOCK_ACCEPTANCE` disposition remains;
+- any `FIX_NOW` repair lacks complete post-remediation acceptance review;
+- any issue-required disposition lacks a complete issue-ready record;
+- the default new-issue budget is exceeded without explicit justification;
 - testing confidence is Low;
 - a testing stop condition remains;
 - required deterministic preflight is unresolved or failed, unless the only
@@ -107,17 +111,20 @@ When blocked:
 - do not create a shipping branch;
 - do not commit;
 - do not push;
-- do not file issues;
+- do not file ordinary deferred issues;
 - do not open or update a PR;
 - report blockers and retained local changes;
 - include the smallest safe follow-up prompt.
 
 ### Clear when
 
-- verdict is PASS or PASS WITH GAPS;
-- no P0/P1 remains;
-- every remaining P2/P3 is genuinely non-blocking, independently closeable, was
-  not modified by remediation, and has a complete issue-ready tracking record;
+- final acceptance is `Accepted` or `Accepted with explicitly documented
+  low-risk residual findings`;
+- no unresolved P0/P1 remains;
+- every `FIX_NOW` repair passed targeted verification, complete-diff review, and
+  independent re-audit;
+- every issue-required disposition has a complete issue-ready record;
+- every `ACCEPT_AS_LOW_VALUE` and `DISMISS` disposition has explicit rationale;
 - testing confidence is High or Moderate;
 - no required stop condition remains;
 - required `doctor` and applicable `fast` preflight passed, or adapter absence
@@ -128,9 +135,10 @@ When blocked:
   policy.
 
 Clearing this gate permits branch preparation and a scoped commit. It does not
-permit push, PR creation/update, issue creation, or merge. Confirmed P2/P3
-findings remain `PASS WITH GAPS`; their actual open-issue links are mandatory
-after final exact-HEAD verification and push, before PR mutation or merge.
+permit push, PR creation/update, issue creation, or merge. Actual open-issue
+links are mandatory after final exact-HEAD verification and push only for
+findings dispositioned `DEFER_TO_ISSUE`, `ADD_TO_EXISTING_ISSUE`, or
+`BATCH_INTO_CLEANUP_ISSUE`.
 
 ### CI coverage limitation rule
 

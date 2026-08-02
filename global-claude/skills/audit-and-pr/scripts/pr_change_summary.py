@@ -16,6 +16,31 @@ VALID_CONVENTIONS = {
     "TOWNCRIER",
     "CUSTOM_FRAGMENT",
 }
+
+VALID_FINDING_DISPOSITIONS = {
+    "FIX_NOW",
+    "DEFER_TO_ISSUE",
+    "ADD_TO_EXISTING_ISSUE",
+    "BATCH_INTO_CLEANUP_ISSUE",
+    "ACCEPT_AS_LOW_VALUE",
+    "DISMISS",
+    "BLOCK_ACCEPTANCE",
+}
+ISSUE_REQUIRED_DISPOSITIONS = {
+    "DEFER_TO_ISSUE",
+    "ADD_TO_EXISTING_ISSUE",
+    "BATCH_INTO_CLEANUP_ISSUE",
+}
+DISPOSITION_HEADINGS = (
+    ("FIX_NOW", "Remediated now"),
+    ("DEFER_TO_ISSUE", "Deferred with issues"),
+    ("ADD_TO_EXISTING_ISSUE", "Added to existing issues"),
+    ("BATCH_INTO_CLEANUP_ISSUE", "Batched findings"),
+    ("ACCEPT_AS_LOW_VALUE", "Accepted low value"),
+    ("DISMISS", "Dismissed"),
+    ("BLOCK_ACCEPTANCE", "Acceptance blockers"),
+)
+
 VALID_BASELINE_DISPOSITIONS = {
     "FIXED_BY_BRANCH",
     "UNCHANGED_TRACKED_BASELINE",
@@ -31,9 +56,19 @@ class ChangeEntry:
 
 @dataclass(frozen=True)
 class DeferredFinding:
+    """Backward-compatible issue-required finding input."""
+
     priority: str
     title: str
     issue_url: str
+
+
+@dataclass(frozen=True)
+class FindingDispositionEntry:
+    severity: str
+    disposition: str
+    title: str
+    issue_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -67,6 +102,7 @@ class SummaryInputs:
     user_facing_impacts: tuple[str, ...] = ()
     breaking_changes: tuple[str, ...] = ()
     deferred_findings: tuple[DeferredFinding, ...] = ()
+    finding_dispositions: tuple[FindingDispositionEntry, ...] = ()
     baseline_restoration: Optional[BaselineRestorationSummary] = None
 
 
@@ -191,16 +227,36 @@ def render_managed_summary(inputs: SummaryInputs) -> str:
     impacts = _clean_items(inputs.user_facing_impacts, "user_facing_impacts")
     breaking = _clean_items(inputs.breaking_changes, "breaking_changes")
 
-    deferred: list[DeferredFinding] = []
+    dispositions: list[FindingDispositionEntry] = []
     for finding in inputs.deferred_findings:
         priority = finding.priority.strip().upper()
         if priority not in {"P2", "P3"}:
-            raise ValueError("only P2/P3 findings belong in Deferred findings")
+            raise ValueError("only P2/P3 findings belong in legacy deferred findings")
         title = " ".join(finding.title.split())
         issue_url = finding.issue_url.strip()
         if not title or not issue_url.startswith(("https://", "http://")):
             raise ValueError("deferred findings require a title and open issue URL")
-        deferred.append(DeferredFinding(priority, title, issue_url))
+        dispositions.append(
+            FindingDispositionEntry(priority, "DEFER_TO_ISSUE", title, issue_url)
+        )
+
+    for finding in inputs.finding_dispositions:
+        severity = finding.severity.strip().upper()
+        disposition = finding.disposition.strip().upper()
+        title = " ".join(finding.title.split())
+        issue_url = finding.issue_url.strip()
+        if severity not in {"P0", "P1", "P2", "P3"}:
+            raise ValueError(f"unsupported severity: {finding.severity}")
+        if disposition not in VALID_FINDING_DISPOSITIONS:
+            raise ValueError(f"unsupported finding disposition: {finding.disposition}")
+        if not title:
+            raise ValueError("finding disposition title is required")
+        if disposition in ISSUE_REQUIRED_DISPOSITIONS:
+            if not issue_url.startswith(("https://", "http://")):
+                raise ValueError("issue-required dispositions require an open issue URL")
+        elif issue_url:
+            raise ValueError("non-issue dispositions must not carry an issue URL")
+        dispositions.append(FindingDispositionEntry(severity, disposition, title, issue_url))
 
     if any(character.isspace() for character in final_head):
         raise ValueError("final_head must be one argument-safe revision identifier")
@@ -230,13 +286,20 @@ def render_managed_summary(inputs: SummaryInputs) -> str:
         lines.extend(f"- {item}" for item in breaking)
         lines.append("")
 
-    if deferred:
-        lines.append("## Deferred findings")
-        for finding in deferred:
-            lines.append(
-                f"- [{finding.priority}: {finding.title}]({finding.issue_url})"
-            )
-        lines.append("")
+    if dispositions:
+        lines.append("## Finding disposition")
+        for disposition, heading in DISPOSITION_HEADINGS:
+            group = [entry for entry in dispositions if entry.disposition == disposition]
+            if not group:
+                continue
+            lines.append(f"### {heading}")
+            for entry in group:
+                label = f"{entry.severity}: {entry.title}"
+                if entry.issue_url:
+                    lines.append(f"- [{label}]({entry.issue_url})")
+                else:
+                    lines.append(f"- {label}")
+            lines.append("")
 
     if inputs.baseline_restoration is not None:
         lines.extend(_render_baseline_restoration(inputs.baseline_restoration))
