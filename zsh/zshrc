@@ -91,3 +91,7 @@ if [ -f '/Users/manish/google-cloud-sdk/path.zsh.inc' ]; then . '/Users/manish/g
 
 # The next line enables shell command completion for gcloud.
 if [ -f '/Users/manish/google-cloud-sdk/completion.zsh.inc' ]; then . '/Users/manish/google-cloud-sdk/completion.zsh.inc'; fi
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
