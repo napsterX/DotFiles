@@ -1,251 +1,312 @@
-# Remediation Policy
+# Risk-Based Remediation and Finding Disposition Policy
 
-## Severity boundary
+## Core principle
 
-Severity determines disposition before mechanical-fix eligibility is considered.
+Severity and disposition are separate decisions.
 
-- Only confirmed P0/P1 implementation findings may enter remediation.
-- Confirmed P2/P3 findings are never modified by `/audit-and-pr`, even when a
-  change looks mechanical, low risk, or easy to validate.
-- An unresolved P0/P1 remains a shipment blocker and may not be converted into a
-  backlog issue merely because remediation is difficult.
-- Never lower a finding to P2/P3 to avoid current-scope remediation.
-- If a finding is necessary to satisfy the current objective or acceptance
-  criteria, it cannot be deferred as P2/P3. Reclassify it as blocking or mark the
-  objective unsatisfied.
-- Audit-process notes and unconfirmed speculation are reported as limitations or
-  notes; they are neither remediated nor converted into implementation tickets.
+- **Severity** describes impact: `P0`, `P1`, `P2`, or `P3`.
+- **Disposition** describes what the current audit should do:
+  - `FIX_NOW`
+  - `DEFER_TO_ISSUE`
+  - `ADD_TO_EXISTING_ISSUE`
+  - `BATCH_INTO_CLEANUP_ISSUE`
+  - `ACCEPT_AS_LOW_VALUE`
+  - `DISMISS`
+  - `BLOCK_ACCEPTANCE`
 
-Use `scripts/finding_disposition.py` or equivalent logic to make this decision
-before any file modification.
+Every material finding must receive both. Never derive disposition mechanically
+from severity alone. Record an evidence-based rationale before modifying code or
+creating backlog.
 
-## P0/P1 remediation eligibility
+Use `scripts/finding_disposition.py` or equivalent logic to validate each
+proposed disposition.
 
-For P0/P1 findings only, remediate when the correction is:
+## P0
 
-- unambiguous;
-- mechanical;
-- low risk;
-- within original scope;
-- safe without design judgment;
-- verifiable through targeted validation and independent re-audit.
+P0 is an active or imminent catastrophic condition, including destructive or
+irreversible data corruption, active compromise, material secret exposure,
+large-scale cross-tenant exposure, complete production outage, or an imminent
+destructive production state.
 
-When uncertain, do not fix. The unresolved P0/P1 blocks shipment.
+Required disposition:
 
-## Potentially safe P0/P1 fixes
+- `FIX_NOW` when remediation is explicitly authorized and feasible; or
+- `BLOCK_ACCEPTANCE` otherwise.
 
-- canonical formatting required to clear a blocking repository gate;
-- deterministic lint auto-fix;
-- unused imports causing a blocking build or lint failure;
-- dead code with no intended behavior when directly tied to the blocker;
-- accidental debug output;
-- stray temporary files;
-- unambiguous `.gitignore` entries;
-- factually incorrect comments/docs proven by code when the error is blocking;
-- missing or incorrect test for already-correct behavior with an unambiguous
-  assertion;
-- trivial blocking bug with exactly one reasonable correction;
-- obvious typo where repository evidence proves intended value;
-- mechanical CI wiring explicitly marked ELIGIBLE by
-  `minimal-sufficient-testing`.
+A P0 remains acceptance-blocking until the repair is independently reverified.
+A future issue is not an acceptable substitute.
 
-Small does not automatically mean safe. P2/P3 findings remain deferred even when
-one of these descriptions appears to fit.
+## P1
 
-## Never auto-fix
+P1 is a material correctness, security, privacy, tenancy, data-integrity,
+availability, or external-contract failure that makes the current implementation
+unsafe to release.
 
-- any P2 or P3 finding;
-- authentication;
-- authorization;
-- tenancy;
-- ownership;
-- RLS;
-- privileged access;
-- security controls;
-- privacy;
-- secrets;
-- payments or entitlements;
-- destructive operations;
-- migrations;
-- retention policy;
-- public contracts;
-- architecture boundaries;
-- protected zones;
-- missing requirements;
-- multiple reasonable solutions;
-- product judgment;
-- ADR decisions;
-- materially uncertain findings;
-- branch-protection settings;
-- secrets, permissions, runners, cloud credentials, or deployment CI.
+Required disposition:
 
-Never remediate merely to obtain green verification by:
+- `FIX_NOW` when repair is authorized, feasible, and consistent with an accepted
+  design or requirement; or
+- `BLOCK_ACCEPTANCE` otherwise.
 
-- making a blocking check advisory;
-- broadening an allowlist without narrowly proven need;
-- adding a blanket baseline;
-- disabling or skipping tests;
-- weakening applicability rules;
-- lowering a threshold or timeout without evidence;
-- suppressing planned-versus-executed reconciliation;
-- changing exit-code behavior to hide a blocker.
+Do not accept the implementation with an unresolved P1. Do not lower a P1 merely
+to avoid current-scope remediation. A ticket alone does not clear acceptance.
 
-Verification machinery may be changed only when the actual P0/P1 finding is in
-that machinery. Such a change is verification-governance-sensitive and requires
-focused conformance evidence plus independent review.
+High-risk P0/P1 remediation in security, authorization, tenancy, privacy,
+migrations, data semantics, payments, destructive operations, or architecture
+requires an independent post-remediation review lane. When the design itself is
+ambiguous or unauthorized, block rather than guess.
 
-## Deferred P2/P3 ledger
+## P2
 
-After authoritative audit synthesis, create one normalized ledger entry for each
-confirmed P2/P3 implementation finding. Each entry must contain enough
-information to create or match a durable GitHub issue:
+P2 is risk-based. It is not automatically fixed and not automatically deferred.
 
-- stable finding identifier;
-- priority;
-- concise title;
-- observed gap and evidence;
-- user, system, security, operational, or maintainability risk;
-- affected paths or components;
-- exact audited branch and commit;
-- acceptance criteria;
-- minimum validation plan;
-- audit origin;
-- candidate equivalent-issue search terms.
+### Prefer `FIX_NOW`
 
-Do not edit code for these findings. Do not let parallel audit lanes create
-issues independently. The synthesis lead owns deduplication and the tracking
-ledger.
+Use `FIX_NOW` when all or most of these conditions are supported:
 
-A P2/P3 may remain in the final audit only when it is genuinely non-blocking and
-independently closeable. The audit verdict is `PASS WITH GAPS`, not `PASS`.
+- directly related to the changed execution path or behavior;
+- introduced or exposed by the current change;
+- self-contained and semantically bounded;
+- no new architecture, migration, product capability, or broad refactor;
+- clear acceptance criteria;
+- deterministic verification;
+- low or bounded regression risk;
+- deferral would require reconstructing essentially the same context;
+- prevents a realistic operational, security, privacy, reliability,
+  maintainability, or user-facing problem;
+- could plausibly become P1 in production;
+- represents missing verification for important behavior introduced by the
+  current change.
+
+### Prefer an issue disposition
+
+Use `DEFER_TO_ISSUE` or `ADD_TO_EXISTING_ISSUE` when one or more apply:
+
+- unrelated or only tangentially related to the audited change;
+- architectural redesign is required;
+- migration or material data-model work is required;
+- product scope expands;
+- broad cross-component work is required;
+- repair risk exceeds the present defect;
+- the repair would obscure or materially enlarge the intended PR;
+- it is an optimization without evidence of a current operational problem;
+- it depends on a future decision, dependency, provider, or product requirement;
+- it should be implemented and reviewed as a dedicated unit.
+
+The report must state why each P2 was fixed now or deferred.
+
+## P3
+
+P3 does not automatically create an issue.
+
+Use:
+
+- `FIX_NOW` only when genuinely trivial, directly adjacent, behavior-preserving,
+  and easy to verify;
+- `BATCH_INTO_CLEANUP_ISSUE` when related findings collectively justify one
+  future root-cause or cleanup outcome;
+- `ADD_TO_EXISTING_ISSUE` when an equivalent issue already exists;
+- `DEFER_TO_ISSUE` only when an individual concrete P3 passes every issue gate;
+- `ACCEPT_AS_LOW_VALUE` when valid but not worth current work or permanent
+  tracking cost;
+- `DISMISS` when speculative, subjective, duplicate, outdated, irrelevant,
+  unsupported, or non-actionable.
+
+An individual P3 issue is allowed only when the desired outcome is concrete,
+acceptance criteria are clear, value is credible, scheduling is realistic, and
+consolidation is inferior.
+
+## Findings required for acceptance
+
+A finding required to satisfy the current ticket, acceptance criteria, or safe
+release may use only:
+
+- `FIX_NOW`; or
+- `BLOCK_ACCEPTANCE`.
+
+Do not hide an acceptance-critical gap under P2/P3 deferral, low-value acceptance,
+or dismissal.
+
+## Issue-creation gate
+
+Before any new deferred issue is created, prove all seven:
+
+1. **Actionable**: a clear defect or improvement and plausible remediation.
+2. **Material enough**: impact justifies permanent backlog.
+3. **Non-duplicative**: open and relevant closed issues were searched.
+4. **Appropriately scoped**: one coherent outcome or shared root cause.
+5. **Verifiable**: meaningful acceptance criteria can be written.
+6. **Likely to be worked**: not merely an observation nobody expects to schedule.
+7. **Better deferred than fixed now**: explain why deferral is safer or more
+   efficient than bounded remediation.
+
+If any condition fails, do not create a new issue. Choose another supported
+disposition and explain it.
+
+## Duplicate and consolidation rules
+
+Before creating backlog:
+
+- search by behavior, component, root cause, evidence terms, and acceptance
+  outcome;
+- add evidence to an equivalent open issue;
+- use relevant closed issues as history, not active ownership;
+- do not create multiple issues for repeated manifestations of one root cause;
+- do not create one issue per file, line, typo, test gap, or cosmetic occurrence;
+- use one coherent cleanup or root-cause issue when grouping has real economic
+  value.
+
+## Default issue budget
+
+Below P1, normally create no more than **three new issues per audited change**.
+Reused open issues do not consume this new-issue budget.
+
+The budget does not authorize hiding material findings. Exceed it only when the
+report explicitly explains for each excess issue:
+
+- why it cannot be fixed now;
+- why it cannot be grouped;
+- why no existing issue is suitable;
+- why it has independent engineering or product value.
+
+## Scope control
+
+Audit findings do not authorize unrestricted cleanup. Do not automatically
+repair:
+
+- unrelated legacy defects;
+- general code-quality concerns outside the changed path;
+- broad formatting or naming cleanup;
+- optional architecture improvements;
+- unrelated dependency upgrades;
+- optional refactors or product enhancements;
+- speculative performance optimization;
+- repository-wide test cleanup.
+
+Optimize for the smallest final change that is safe, correct, supportable, and
+verifiable.
 
 ## Single-writer rule
 
-Use exactly one remediation writer against the pinned `TASK_ROOT` worktree. Parallel audit lanes
-may review the result, but no second worker may edit files, generate overlapping
-outputs, commit, or mutate Git state concurrently.
+Use exactly one remediation writer against the pinned `TASK_ROOT`. Parallel audit
+lanes may review but must not edit, commit, generate overlapping outputs, or
+mutate Git state concurrently.
 
-## Round process
+## Remediation eligibility
 
-At most three rounds.
+A `FIX_NOW` candidate must be:
+
+- authorized and feasible;
+- directly related;
+- semantically bounded;
+- supported by clear acceptance criteria;
+- deterministically verifiable;
+- low or bounded regression risk;
+- free of uncontrolled scope expansion.
+
+P3 additionally requires trivial adjacency and behavior preservation. P2
+requires evidence that immediate repair has meaningful contextual value.
+
+Do not remediate merely to obtain green verification by weakening checks,
+allowlists, baselines, applicability, thresholds, timeouts, or exit-code
+behavior.
+
+Verification machinery may change only when the actual finding is in that
+machinery. Such a change is verification-governance-sensitive and requires
+focused conformance evidence and the dedicated review lane.
+
+## Bounded round process
+
+At most three remediation rounds.
 
 Before each round:
 
-1. record current findings and preserve their original severity;
-2. snapshot the current diff, tracked paths, HEAD, deterministic preflight
-   evidence, and legacy/adapter mode;
-3. exclude every P2/P3 from the remediation candidate set;
-4. identify eligible P0/P1 fixes;
-5. preserve unrelated changes;
-6. state what will be changed and why it qualifies;
-7. define the minimum evidence plan for the exact P0/P1 findings being corrected.
+1. preserve original severity and proposed disposition;
+2. snapshot HEAD, diff, tracked paths, deterministic evidence, and worktree
+   state;
+3. include only validated `FIX_NOW` findings;
+4. preserve unrelated work;
+5. state the exact repair and why it is bounded;
+6. define the minimum evidence plan.
 
-For blocking test or CI gaps:
-
-- invoke `minimal-sufficient-testing` in Implementation mode;
-- add only required tests;
-- wire CI only when marked ELIGIBLE;
-- respect stop conditions;
-- do not add broader coverage marked unnecessary.
-
-Apply eligible P0/P1 fixes without committing.
+Apply eligible fixes without committing.
 
 If the retained round changes tracked files:
 
 1. run targeted validation selected by `minimal-sufficient-testing`;
 2. reconcile every planned check as `PASS`, `FAIL`, `UNAVAILABLE`, `NOT RUN`, or
    `NOT APPLICABLE`;
-3. rerun `./scripts/verify fast --base <resolved-base>` only when the change
-   invalidates prior fast evidence, repository policy requires it, or
-   verification machinery changed;
-4. when the adapter is absent, rerun only the legacy validation invalidated by
-   the changes;
-5. for verification-governance changes, run focused conformance tests and
-   activate the dedicated governance audit lane;
-6. capture current HEAD, commands, outputs, and results;
-7. stop on any required validation or evidence-reconciliation blocker;
-8. build a fresh immutable audit packet for the new state;
-9. rerun the applicable read-only audit lanes and authoritative synthesis using
-   the same pinned audit model and effort;
-10. confirm that P2/P3 findings remained unmodified and refresh their issue-ready
-    ledger entries if evidence or affected paths changed.
+3. rerun `./scripts/verify fast --base <resolved-base>` only when evidence was
+   invalidated, repository policy requires it, or verification machinery changed;
+4. in legacy mode, rerun only invalidated native validation;
+5. for verification-governance changes, run focused conformance tests;
+6. capture current HEAD, commands, output, and results;
+7. build a fresh immutable audit packet;
+8. rerun applicable read-only lanes and authoritative synthesis;
+9. reassess every finding's severity and disposition;
+10. update issue-ready records only for findings that still require tracking.
 
 Do not run `./scripts/verify ship` after each remediation round. The full ship
-profile is mandatory only after the final audited scope is committed. Targeted
-validation and risk-triggered `fast` provide the in-loop feedback.
+profile is mandatory only for the final committed candidate.
 
-A complete re-audit reconsiders all ten dimensions and reassesses the ledger.
-Parallel lanes may perform those dimensions concurrently, but the synthesis is
-single and authoritative. The re-audit does not automatically rerun every test.
+## Post-remediation acceptance review
 
-## Validation concurrency
+A repair is not accepted merely because the original finding disappeared.
+Review the complete final diff and prove:
 
-Independent validation commands may run concurrently only when repository
-policy or `minimal-sufficient-testing` proves they do not contend for shared
-ports, databases, Docker state, generated files, build directories, snapshots,
-coverage output, browser state, or other mutable resources. Otherwise run them
-sequentially.
+- the original finding is resolved;
+- no new defect or regression was introduced;
+- security, authorization, tenancy, privacy, and data-integrity boundaries were
+  rechecked when relevant;
+- required tests and verification pass;
+- intended ticket and approved architecture remain satisfied;
+- remediation did not introduce uncontrolled scope expansion.
+
+Use `scripts/finding_disposition.py post-remediation` or equivalent logic.
+High-risk repairs require a fresh review context or independent lane. The writer
+must not be the sole acceptance authority.
 
 ## Regression handling
 
-If a round introduces a new implementation finding:
+If a remediation round introduces a regression or uncontrolled scope expansion:
 
-- revert only that round's changes;
-- preserve pre-round and unrelated changes;
-- do not use destructive Git reset;
+- revert only that round's attributable changes;
+- preserve pre-round and unrelated work;
+- never use destructive reset or clean;
 - rerun targeted validation needed to prove restoration;
-- rerun `fast` only if the restoration invalidated its evidence or repository
-  policy requires it;
-- stop remediation;
-- report the failed attempt;
-- continue to audit eligibility only from the restored, revalidated, re-audited
-  pre-round state.
+- stop or begin a materially different bounded round only when safe;
+- report the failed attempt.
 
-If no eligible P0/P1 finding remains, stop remediation. P2/P3 findings are not a
-reason to start or continue a remediation round.
+If three rounds do not converge, stop for human review.
 
-If three rounds do not converge on P0/P1 findings, stop for human review.
+## Retained records
 
-## Retained fix record
+For every `FIX_NOW` finding, record:
 
-For each retained P0/P1 fix, record:
-
-- finding and original priority;
-- change;
-- why safe;
+- finding and original severity;
+- why immediate repair was appropriate;
+- exact change;
 - targeted validation;
-- any risk-triggered `fast` or legacy revalidation result;
-- independent re-audit result;
+- optional `fast` or legacy rerun;
+- post-remediation independent review;
 - round.
 
-For each P2/P3, record `DEFERRED — CODE UNCHANGED` plus its tracking-ledger
-identifier. Do not report reverted attempts as retained fixes.
+For every other finding, record disposition, rationale, and issue or evidence
+reference when applicable. Do not report reverted attempts as retained fixes.
 
-## Confidence separation during remediation
+## Baseline-restoration interaction
 
-Do not lower testing confidence merely because a documented accepted
-repository-wide CI limitation remains after a remediation round. Testing
-confidence follows direct evidence for the exact remediated state. Final High
-confidence remains contingent on the final exact-HEAD ship or legacy gate. CI
-enforcement confidence and merge eligibility are reported separately.
+`BASELINE_RESTORATION` does not relax this policy. It may retain bounded
+`FIX_NOW` findings under the same rules, but cannot use the exception to absorb
+new regressions or protected-domain failures.
 
-## Baseline-restoration remediation interaction
+When remediation changes the already-red lane or verification machinery:
 
-`BASELINE_RESTORATION` does not expand remediation authority. Only eligible P0/P1
-findings may be changed, and P2/P3 findings remain issue-only.
-
-When retained remediation changes files relevant to the already-red lane or its
-verification machinery:
-
-1. run the normal targeted validation;
-2. rerun only the affected base/branch comparison;
+1. run targeted validation;
+2. rerun only the affected base-versus-branch comparison;
 3. refresh the exact failure ledger;
-4. re-audit the new immutable state;
-5. reject any `NEW_REGRESSION`, `UNATTRIBUTED`, untracked residual, or
-   protected-domain residual.
+4. re-audit the immutable state;
+5. reject any `NEW_REGRESSION`, `UNATTRIBUTED`, untracked residual, or protected
+   domain residual.
 
-Do not repeatedly rerun the baseline or branch to obtain a favorable sample. Do
-not weaken, skip, quarantine, reclassify, or extend timeouts for the lane. A
-remediation that changes verification machinery requires the existing heightened
-governance review and invalidates prior comparison evidence when it affects the
-lane.
+Do not repeatedly rerun to obtain a favorable sample or weaken the lane.

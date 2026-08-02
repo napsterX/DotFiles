@@ -1,6 +1,6 @@
 ---
 name: audit-and-pr
-description: Run deterministic preflight, an independent risk-adaptive parallel audit, bounded P0/P1 remediation, P2/P3 tracking, final exact-HEAD verification, controlled BASELINE_RESTORATION comparison, PR generation, CI, merge gating, and cleanup. Accept direct user invocation or a validated fix-issues finalization manifest.
+description: Run deterministic preflight, an independent risk-adaptive parallel audit, risk-based hybrid remediation and finding disposition, bounded issue creation, final exact-HEAD verification, controlled BASELINE_RESTORATION comparison, PR generation, CI, merge gating, and cleanup. Accept direct user invocation or a validated fix-issues finalization manifest.
 user-invocable: true
 ---
 
@@ -47,9 +47,9 @@ Executable references when helpers are supported:
 - `scripts/workflow_plan.py` — required verification-stage ordering;
 - `scripts/audit_parallelism.py` — automatic read-only lane selection;
 - `scripts/shipping_decision.py` — separation of testing confidence, CI
-  enforcement confidence, deferred-finding tracking, and merge eligibility;
-- `scripts/finding_disposition.py` — severity-driven remediation and mandatory
-  GitHub tracking decisions for confirmed P2/P3 findings;
+  enforcement confidence, issue-required finding tracking, and merge eligibility;
+- `scripts/finding_disposition.py` — independent severity/disposition validation,
+  issue-creation gating, issue-budget enforcement, and post-remediation review;
 - `scripts/pr_change_summary.py` — deterministic managed PR-summary rendering,
   safe existing-body replacement, and permanent-changelog action decisions.
 
@@ -83,14 +83,18 @@ Never:
 - ship without a completed independent audit;
 - treat unsupported test claims as evidence;
 - allow concurrent remediation writers or concurrent Git/PR mutations;
-- auto-fix security, architecture, migration, authorization, tenancy, or design
-  decisions;
-- modify code to remediate a P2 or P3 finding, even when the change appears
-  mechanical or low risk;
+- guess security, architecture, migration, authorization, tenancy, privacy, data,
+  payment, destructive-operation, or product decisions;
+- derive remediation or issue creation mechanically from severity alone;
 - defer an unresolved P0/P1 to a backlog issue;
-- merge while any confirmed P2/P3 implementation finding lacks an equivalent
-  open GitHub issue;
-- downgrade a finding to P2/P3 merely to avoid current-scope remediation;
+- accept a finding required for safe acceptance unless it is fixed and reverified;
+- merge while any finding disposition that requires GitHub tracking lacks an
+  equivalent open issue;
+- create permanent backlog for audit-process notes, unsupported speculation, or
+  low-value observations that fail the issue-creation gate;
+- exceed the default three-new-issue budget without explicit per-issue
+  justification;
+- downgrade severity merely to avoid current-scope remediation;
 - ship with P0, P1, or Low testing confidence;
 - lower testing confidence solely because of a documented accepted
   repository-wide CI coverage limitation;
@@ -98,7 +102,7 @@ Never:
   into one status;
 - turn audit-process notes into repository issues;
 - generate a PR change summary from an earlier or unaudited HEAD;
-- list deferred P2/P3 findings as fixed or omit their open issue links;
+- list deferred, batched, accepted-low-value, or dismissed findings as fixed;
 - overwrite user-authored PR content outside the managed change-summary block;
 - invent or automatically introduce a permanent repository changelog convention;
 - expose secrets, private service details, customer data, or sensitive exploit
@@ -133,13 +137,15 @@ Provide concise milestone updates:
    preliminary failure ledger are established.
 3. Risk, evidence plan, and parallel lane plan established.
 4. Independent initial audit synthesized.
-5. Severity disposition completed: P0/P1 remediation candidates and deferred
-   P2/P3 tracking records established.
-6. P0/P1 remediation validation and re-audit completed.
+5. Every material finding received severity plus an evidence-backed disposition;
+   bounded remediation and issue-required records were established.
+6. `FIX_NOW` remediation, targeted validation, complete-diff review, and
+   independent re-audit completed.
 7. Audit eligibility gate cleared or blocked.
 8. Final exact-HEAD ship or legacy verification passed, blocked, or was
    truthfully classified `FAILED_PRE_EXISTING_BASELINE` with a complete ledger.
-9. Deferred P2/P3 and baseline-residual GitHub tracking completed or blocked.
+9. Issue-required finding and baseline-residual GitHub tracking completed or
+   blocked; issue budget reconciled.
 10. Final-diff PR change summary and any required repository changelog artifact
     completed or blocked.
 11. PR, CI, merge, and cleanup outcome determined.
@@ -163,9 +169,10 @@ effort.
 
 ## Remediation model
 
-All eligible P0/P1 remediation work, including Implementation-mode work
-delegated to `minimal-sufficient-testing`, uses its own pinned model and effort.
-P2/P3 findings never enter the remediation writer.
+All validated `FIX_NOW` remediation, including bounded P2 and trivial adjacent
+P3 repairs and Implementation-mode work delegated to
+`minimal-sufficient-testing`, uses its own pinned model and effort. P0/P1 still
+remain mandatory current-acceptance work or blockers.
 
 - Model: Sonnet.
 - Effort: xhigh.
@@ -361,60 +368,70 @@ change.
 Flag verification-governance-sensitive diffs and add the dedicated governance
 lane when parallel mode is used.
 
-## Severity disposition and bounded remediation
+## Severity, disposition, and bounded remediation
 
 Follow `remediation-policy.md` and use `scripts/finding_disposition.py` or
-equivalent logic before any edit. Severity is determined by the independent
-audit, not by remediation convenience.
+equivalent logic before any edit or issue creation. Severity is determined by
+impact. Disposition is a separate current-audit decision and must be one of:
 
-- Only confirmed P0/P1 findings may enter remediation.
-- A P0/P1 that is not safely remediable remains a shipment blocker; do not defer
-  it to backlog tracking.
-- Every confirmed P2/P3 is excluded from remediation, even when a mechanical fix
-  appears obvious.
-- If a P2/P3 is actually required to satisfy the current objective or acceptance
-  criteria, stop for classification review: reclassify it as blocking or mark
-  the objective unsatisfied.
-- Normalize every legitimate deferred P2/P3 into an issue-ready tracking record
-  after authoritative synthesis.
-- At most three remediation rounds.
-- Exactly one remediation writer.
-- Do not commit during remediation.
+- `FIX_NOW`
+- `DEFER_TO_ISSUE`
+- `ADD_TO_EXISTING_ISSUE`
+- `BATCH_INTO_CLEANUP_ISSUE`
+- `ACCEPT_AS_LOW_VALUE`
+- `DISMISS`
+- `BLOCK_ACCEPTANCE`
+
+Every material finding needs an explicit rationale.
+
+- P0/P1 use `FIX_NOW` when authorized and feasible, otherwise
+  `BLOCK_ACCEPTANCE`. They cannot be accepted through future tracking.
+- P2 may use `FIX_NOW` when directly related, bounded, low risk, and
+  deterministically verifiable; otherwise apply the issue gate or another
+  justified disposition.
+- P3 is not automatically ticketed. Fix only trivial adjacent items; otherwise
+  batch, add to an existing issue, accept as low value, or dismiss.
+- Any finding required for the current objective or safe acceptance must be
+  `FIX_NOW` or `BLOCK_ACCEPTANCE`.
+- New issues require the seven-part issue-creation gate and normally no more than
+  three new below-P1 issues per audited change.
+- At most three remediation rounds, exactly one remediation writer, and no commit
+  during remediation.
 
 After every retained round that changes tracked files:
 
 1. restate the remediation evidence plan;
 2. run targeted validation selected by `minimal-sufficient-testing`;
 3. reconcile planned versus executed evidence;
-4. rerun `fast --base <resolved-base>` only when remediation invalidates the
-   prior preflight, repository policy requires it, or verification machinery
-   changed;
+4. rerun `fast --base <resolved-base>` only when remediation invalidates prior
+   evidence, repository policy requires it, or verification machinery changed;
 5. run focused conformance evidence for verification-governance changes;
-6. create a fresh immutable packet for the new code state;
-7. rerun the applicable audit lanes and authoritative synthesis;
-8. when in `BASELINE_RESTORATION` and retained remediation changed files relevant
-   to the failing lane or its verification machinery, rerun only the affected
-   base/branch comparison and refresh the ledger. Do not sample intermittent
-   reruns until favorable.
+6. review the complete final diff, not only the original finding;
+7. recheck security, authorization, tenancy, privacy, and data-integrity
+   boundaries when relevant;
+8. create a fresh immutable packet and rerun applicable independent audit lanes
+   plus authoritative synthesis;
+9. reject regressions or uncontrolled scope expansion;
+10. reassess every finding's severity and disposition;
+11. in `BASELINE_RESTORATION`, rerun only the affected base/branch comparison and
+    refresh the ledger when relevant files changed.
 
 Do not run the full `ship` profile after each remediation round. An earlier ship
-result, if one exists from outside this workflow, never authorizes the final
-state.
+result never authorizes the final state.
 
 ## Audit eligibility gate
 
 Follow Gate 1 in `shipping-gate.md`.
 
-If blocked, leave retained safe P0/P1 local fixes uncommitted, report them, and
+If blocked, leave retained safe `FIX_NOW` changes uncommitted, report them, and
 stop before branch, commit, push, issue, PR, merge, or cleanup operations.
 
-Gate 1 may clear with confirmed P2/P3 findings only when each is genuinely
-non-blocking, independently closeable, and represented by a complete issue-ready
-record. In restoration mode, known residual gate failures are not unexplained
-only when the complete ledger classifies them as
-`UNCHANGED_TRACKED_BASELINE` or `PRE_EXISTING_NEWLY_UNMASKED`; every owner must be
-an open canonical issue. Actual GitHub tracking is mandatory before PR mutation
-or merge.
+Gate 1 may clear only when every material finding has a valid disposition, every
+`FIX_NOW` repair passed post-remediation review, no `BLOCK_ACCEPTANCE` remains,
+and every issue-required finding has a complete issue-ready record.
+`ACCEPT_AS_LOW_VALUE` and `DISMISS` require explicit rationale but no issue. In
+restoration mode, known residual gate failures remain separately governed by the
+complete baseline ledger and canonical owners.
 
 ## Commit the audited scope
 
@@ -472,44 +489,44 @@ independent audit and final exit `1`; re-evaluate eligibility immediately after.
 Any draft is provisional until it is regenerated or confirmed against the final
 audited HEAD and completed tracking ledgers.
 
-## Deferred-finding tracking, GitHub, and PR
+## Finding tracking, GitHub, and PR
 
 Only after the final shipment classification is `NORMAL_GREEN`,
 `NOT_APPLICABLE`, or fully eligible `FAILED_PRE_EXISTING_BASELINE`, follow the
-remaining sections of `github-and-pr-policy.md`. For a restoration candidate,
-every baseline-residual owner must already be an open canonical issue before
-push. If the final exit `1` reveals a proven newly unmasked failure without an
-owner, the skill may create that exact issue after audit and before push, then
-rerun the restoration decision; it may not mutate the PR or merge during that
-step. After the branch is pushed, complete the normal deferred P2/P3 tracking
-gate before creating or updating a PR or merging:
+remaining sections of `github-and-pr-policy.md`.
 
-1. For every confirmed P2/P3, search for an actually equivalent open issue.
-2. Reuse the open issue or create a new issue; a closed issue is context, not
-   active tracking.
-3. Link every finding to an open issue. Closely related P3s may share one issue
-   only when they form one root cause and one objectively closeable scope.
-4. If GitHub is unavailable, issue creation fails, or any confirmed P2/P3 lacks
-   an open issue link, stop with `TRACKING BLOCKED`. Do not mutate the PR or
-   merge.
+For ordinary audit findings:
 
-Do not let individual parallel lanes create issues. The authoritative synthesis
-owns deduplication, issue equivalence, and the final tracking ledger.
+1. Track only `DEFER_TO_ISSUE`, `ADD_TO_EXISTING_ISSUE`, and
+   `BATCH_INTO_CLEANUP_ISSUE` dispositions.
+2. Search open and relevant closed issues before creation.
+3. Reuse equivalent open issues and consolidate repeated root causes.
+4. Apply the seven-part issue-creation gate before any new issue.
+5. Normally create no more than three new below-P1 issues; explain every justified
+   exception.
+6. Do not create issues for `ACCEPT_AS_LOW_VALUE`, `DISMISS`, process notes, or
+   unsupported speculation.
+7. If required tracking is incomplete or GitHub is unavailable, stop with
+   `TRACKING BLOCKED`. Do not mutate the PR or merge.
+
+Baseline-restoration residual ownership remains separately mandatory. Do not let
+parallel lanes mutate GitHub; the synthesis lead owns deduplication and tracking.
 
 ## Final-diff PR change summary
 
-Follow `pr-change-summary-policy.md` after deferred-finding tracking is complete
+Follow `pr-change-summary-policy.md` after issue-required tracking is complete
 or not applicable and before creating or updating the PR.
 
 1. Generate one managed `Change summary` block from the final audited diff,
-   objective, tests, retained P0/P1 remediation, and exact verified HEAD.
+   objective, tests, retained `FIX_NOW` remediation, and exact verified HEAD.
 2. Categorize concrete changes as Added, Changed, Fixed, or Removed and omit empty
    categories.
 3. State user-facing impact explicitly. Add a distinct Breaking changes section
    only when migration, deployment, configuration, API, schema, compatibility, or
    rollback action is required.
-4. Include every confirmed deferred P2/P3 with its equivalent open GitHub issue
-   link. Never describe deferred work as fixed.
+4. Include every issue-required finding with its equivalent open GitHub issue
+   link and summarize batched mappings. Never describe deferred, accepted-low-
+   value, or dismissed work as fixed.
 5. Preserve repository-template and user-authored PR content outside the managed
    markers. Replace the existing managed block when updating a PR; block on
    duplicate or unmatched markers.
@@ -556,5 +573,6 @@ branch when the PR targeted a non-default integration branch.
 Use `report-format.md`. Keep operating mode, preflight, baseline-restoration comparison and ledger,
 parallel audit execution, evidence reconciliation, final Repository
 Verification, independent audit, PR change summary and permanent changelog
-handling, testing, CI, PR, merge, issue reconciliation, and cleanup as separate
-sections.
+handling, testing, CI, PR, merge, issue reconciliation, cleanup, and the
+separate historical-backlog-hygiene recommendation as separate sections. Never
+perform historical backlog cleanup without separate authorization.

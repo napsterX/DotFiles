@@ -327,8 +327,7 @@ After the bounded queue ends:
    audit skill's delegated-invocation helper.
 8. Invoke `/audit-and-pr` exactly once through the Skill tool with that validated
    manifest.
-9. Let `/audit-and-pr` exclusively own the independent audit, bounded P0/P1
-   remediation, P2/P3 finding tracking, final ship gate, push, PR generation,
+9. Let `/audit-and-pr` exclusively own the independent audit, risk-based finding remediation and bounded issue disposition, final ship gate, push, PR generation,
    CI, merge disposition, and cleanup.
 10. Do not duplicate those operations in `/fix-issues`.
 11. Journal the finalizer outcome, send the terminal FirstMate notification from

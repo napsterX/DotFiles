@@ -81,10 +81,60 @@ class PrChangeSummaryTests(unittest.TestCase):
                 pcs.DeferredFinding("P2", "Retry telemetry gap", "https://example.test/issues/42"),
             ),
         )
-        self.assertIn("## Deferred findings", result)
+        self.assertIn("### Deferred with issues", result)
         self.assertIn("P2: Retry telemetry gap", result)
         fixed_section = result.split("### Fixed", 1)[1].split("## User-facing impact", 1)[0]
         self.assertNotIn("Retry telemetry gap", fixed_section)
+
+
+    def test_risk_based_finding_dispositions_render_separately(self):
+        result = self.render(
+            final_head="abc123",
+            changes=(pcs.ChangeEntry("Fixed", "Resolved authorization blocker"),),
+            finding_dispositions=(
+                pcs.FindingDispositionEntry("P1", "FIX_NOW", "Authorization bypass repaired"),
+                pcs.FindingDispositionEntry(
+                    "P2",
+                    "DEFER_TO_ISSUE",
+                    "Legacy subsystem redesign",
+                    "https://example.test/issues/42",
+                ),
+                pcs.FindingDispositionEntry("P3", "ACCEPT_AS_LOW_VALUE", "Minor naming inconsistency"),
+                pcs.FindingDispositionEntry("P3", "DISMISS", "Speculative edge case"),
+            ),
+        )
+        self.assertIn("## Finding disposition", result)
+        self.assertIn("### Remediated now", result)
+        self.assertIn("### Deferred with issues", result)
+        self.assertIn("### Accepted low value", result)
+        self.assertIn("### Dismissed", result)
+        fixed_section = result.split("### Fixed", 1)[1].split("## User-facing impact", 1)[0]
+        self.assertNotIn("Legacy subsystem redesign", fixed_section)
+
+    def test_issue_required_disposition_requires_url(self):
+        with self.assertRaises(ValueError):
+            self.render(
+                final_head="abc123",
+                changes=(pcs.ChangeEntry("Changed", "Updated behavior"),),
+                finding_dispositions=(
+                    pcs.FindingDispositionEntry("P2", "DEFER_TO_ISSUE", "Needs follow-up"),
+                ),
+            )
+
+    def test_non_issue_disposition_rejects_issue_url(self):
+        with self.assertRaises(ValueError):
+            self.render(
+                final_head="abc123",
+                changes=(pcs.ChangeEntry("Changed", "Updated behavior"),),
+                finding_dispositions=(
+                    pcs.FindingDispositionEntry(
+                        "P3",
+                        "ACCEPT_AS_LOW_VALUE",
+                        "Minor cleanup",
+                        "https://example.test/issues/9",
+                    ),
+                ),
+            )
 
     def test_existing_pr_content_is_preserved_outside_managed_block(self):
         section = self.render(

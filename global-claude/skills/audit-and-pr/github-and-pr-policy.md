@@ -12,28 +12,23 @@ Run only after the audit eligibility gate clears.
 
 ## Commit
 
-Commit only audited scope.
-
-Exclude unrelated changes.
-
-Match repository commit style.
+Commit only audited scope. Exclude unrelated changes and match repository commit
+style.
 
 ### Original implementation uncommitted
 
-Commit the final audited implementation coherently. Retained eligible P0/P1
-fixes may be included when separating them would require risky patch
-reconstruction.
-
-Disclose all remediation changes.
+Commit the final audited implementation coherently. Retained `FIX_NOW` repairs
+may be included when separating them would require risky patch reconstruction.
+Disclose all remediation.
 
 ### Original implementation committed
 
-Commit retained P0/P1 remediation separately.
+Commit retained `FIX_NOW` remediation separately. Do not rewrite history unless
+explicitly required.
 
-Do not rewrite history unless explicitly required.
-
-Never include code changes made solely to address P2/P3 findings. Those findings
-must remain deferred and tracked.
+Never include code changes for findings dispositioned `DEFER_TO_ISSUE`,
+`ADD_TO_EXISTING_ISSUE`, `BATCH_INTO_CLEANUP_ISSUE`, `ACCEPT_AS_LOW_VALUE`, or
+`DISMISS`.
 
 ## Final verification boundary
 
@@ -41,209 +36,216 @@ After the scoped commit:
 
 - verify the working tree is clean;
 - record the exact committed SHA;
-- for a valid adapter, run `./scripts/verify ship --base <resolved-base>` as
-  defined in `repository-verification-policy.md` and `shipping-gate.md`;
+- for a valid adapter, run `./scripts/verify ship --base <resolved-base>`;
 - for an absent adapter, preserve the legacy final validation workflow;
-- in normal mode, stop on any invalid adapter, failure, contradiction, timeout,
+- in normal mode, stop on invalid adapter, failure, contradiction, timeout,
   interruption, HEAD change, or post-run tree change;
-- for a `BASELINE_RESTORATION` candidate, permit final exit `1` to proceed only
-  after `baseline-restoration-policy.md` proves the complete exact-HEAD ledger
-  and classifies the result `FAILED_PRE_EXISTING_BASELINE`.
+- for a `BASELINE_RESTORATION` candidate, permit final exit `1` only after the
+  complete exact-HEAD ledger proves `FAILED_PRE_EXISTING_BASELINE`.
 
-The Push, Track deferred findings, PR change summary, Existing PR, and New PR
-sections below are forbidden until the exact current `HEAD` is classified
-`NORMAL_GREEN`, successful legacy `NOT_APPLICABLE`, or fully eligible
-`FAILED_PRE_EXISTING_BASELINE`.
+Push, issue tracking, PR summary, PR mutation, and merge are forbidden until the
+exact current `HEAD` is `NORMAL_GREEN`, successful legacy `NOT_APPLICABLE`, or a
+fully eligible `FAILED_PRE_EXISTING_BASELINE`.
 
 ## Push
 
-Push without force. A `FAILED_PRE_EXISTING_BASELINE` classification permits the
-push only for the exact audited commit represented by the complete ledger.
+Push without force. A `FAILED_PRE_EXISTING_BASELINE` classification permits push
+only for the exact audited commit represented by the complete ledger.
 
 If push fails, report and stop. Do not create tracking issues that claim a pushed
 branch state when the push did not succeed.
 
-## Mandatory deferred-finding tracking gate
+## Finding disposition and issue-tracking gate
 
 Only confirmed implementation findings participate. Never create issues for:
 
 - audit-process notes;
-- unconfirmed speculation;
+- unconfirmed or unsupported speculation;
 - a failed repository ship-gate attempt;
-- repository-wide accepted limitations that are not per-change implementation
-  findings.
+- repository-wide accepted limitations that are not per-change findings;
+- findings dispositioned `ACCEPT_AS_LOW_VALUE` or `DISMISS`.
 
-P0/P1 findings cannot satisfy this gate through issue creation. They must already
-be resolved or shipment remains blocked.
+P0/P1 cannot satisfy acceptance through issue creation. They must be resolved or
+remain `BLOCK_ACCEPTANCE`.
 
-Every confirmed P2/P3 finding must map to an equivalent open GitHub issue before
-PR creation/update or merge. There is no PR-only exception for confirmed P3
-findings.
+Only these dispositions require an equivalent open GitHub issue:
 
-Perform tracking only after authoritative audit synthesis. Parallel audit lanes
-must not search, create, or mutate issues independently.
+- `DEFER_TO_ISSUE`;
+- `ADD_TO_EXISTING_ISSUE`;
+- `BATCH_INTO_CLEANUP_ISSUE`.
+
+A P2 or P3 with `FIX_NOW`, `ACCEPT_AS_LOW_VALUE`, or `DISMISS` does not require a
+new issue merely because of severity.
+
+Perform GitHub tracking only after authoritative synthesis. Parallel lanes must
+not search, create, update, or label issues independently.
+
+### Mandatory issue-creation gate
+
+Before creating any new issue, prove:
+
+1. the finding is actionable;
+2. impact is material enough for permanent backlog;
+3. open and relevant closed issues were searched;
+4. the issue is one coherent outcome or shared root cause;
+5. acceptance criteria are meaningful and verifiable;
+6. the work is realistically likely to be scheduled;
+7. deferral is safer or more efficient than bounded current remediation.
+
+If any condition fails, do not create a new issue. Reconsider `FIX_NOW`,
+`ADD_TO_EXISTING_ISSUE`, `BATCH_INTO_CLEANUP_ISSUE`, `ACCEPT_AS_LOW_VALUE`, or
+`DISMISS` and explain the result.
 
 ### Equivalence and deduplication
 
-For each confirmed P2/P3:
+For each issue-required finding:
 
-1. Search open issues using the normalized finding title, affected component,
-   evidence terms, and acceptance criteria.
-2. Reuse an open issue only when it represents the same defect or root cause and
-   its acceptance criteria would objectively close the finding.
-3. Do not reuse a broad epic, umbrella backlog, or vaguely related issue as the
-   finding's tracking record unless it contains an explicit child task that
-   closes the finding.
-4. A closed issue is historical context, not active tracking. Create a new issue
-   and reference the closed issue when the gap reappears.
-5. Otherwise create a new issue.
+1. Search open and relevant closed issues using normalized title, behavior,
+   component, root-cause evidence, and acceptance outcome.
+2. Reuse an open issue only when it objectively closes the same finding.
+3. Do not reuse a broad epic or umbrella unless it contains an explicit,
+   independently closeable child outcome.
+4. Treat a closed issue as historical context, not active ownership.
+5. Add evidence to an equivalent open issue rather than creating a duplicate.
+6. Group repeated manifestations of one root cause into one issue.
+7. Do not create one issue per file, line, typo, test gap, or cosmetic
+   inconsistency when one shared remediation is appropriate.
 
-Each P2 normally receives its own issue. Multiple P2 findings may share one issue
-only when they are the same root cause and one atomic remediation unit.
+`BATCH_INTO_CLEANUP_ISSUE` requires multiple related findings and one coherent,
+prioritizable, objectively closeable outcome. List every grouped finding in the
+issue and audit ledger.
 
-Closely related P3 findings may share one issue only when they form one coherent,
-independently prioritizable, objectively closeable scope. Every grouped finding
-must be listed explicitly in the issue and in the audit tracking ledger.
+### Default new-issue budget
+
+For findings below P1, normally create no more than **three new issues per audited
+change**. Reusing or updating existing open issues does not consume this budget.
+
+Exceed the default only with an explicit explanation of:
+
+- why each finding cannot be fixed now;
+- why findings cannot be grouped;
+- why existing issues cannot be used;
+- why each new issue has independent value.
+
+The budget never weakens P0/P1 handling and never permits material findings to be
+hidden.
 
 ### Issue body
 
 Include:
 
 - stable audit finding identifier;
-- priority;
-- concise observed gap;
-- risk and why shipment is temporarily acceptable;
+- severity and disposition;
+- observed gap and impact;
 - evidence and affected paths/components;
-- audited branch and exact commit SHA;
+- why it was deferred rather than fixed now;
+- proposed remediation;
 - acceptance criteria;
 - minimum validation plan;
+- dependencies;
+- audited branch and exact commit SHA;
 - audit and PR origin when available;
-- related or superseded issue references.
+- related, duplicate, or superseded issue references;
+- repository-specific agent-routing classification only when that repository or
+  installed policy already defines it.
 
-Follow existing repository labels and ticket conventions. Do not invent a new
-label taxonomy. If no matching severity label exists, record priority in the
-title/body rather than blocking issue creation solely on labels.
+Follow existing labels and ticket conventions. Do not invent a new taxonomy.
+This update does not add a local/cloud routing scheme; preserve any existing
+repository-specific routing labels without silently changing them.
 
 ### Tracking completion
 
-Use `scripts/finding_disposition.py` or equivalent logic to reconcile:
+Use `scripts/finding_disposition.py tracking` or equivalent logic to reconcile:
 
-- confirmed deferred finding count;
+- findings with issue-required dispositions;
 - findings linked to equivalent open issues;
-- issue URLs;
 - reused versus newly created issues;
-- grouped-finding mappings.
+- grouped mappings;
+- new-issue budget and any documented exception.
 
-Tracking is complete only when every confirmed P2/P3 maps to an open issue.
+Tracking is complete only when every issue-required disposition maps to an open
+issue and the issue budget is satisfied or explicitly justified.
 
-If GitHub is unavailable, issue search fails materially, issue creation fails, or
-any confirmed P2/P3 remains without an open issue link:
+If GitHub is unavailable, search/update/create fails, an issue-required finding
+lacks an open link, or the issue budget is exceeded without justification:
 
-- set status to `TRACKING BLOCKED`;
+- set `TRACKING BLOCKED`;
 - do not create or update the PR;
 - do not merge;
 - preserve the pushed branch if already pushed;
-- report exactly which findings remain untracked and why.
+- report exactly what remains incomplete.
 
-Do not change code merely because issue creation is unavailable.
+Do not modify code merely because tracking is unavailable.
 
 ## Baseline-restoration residual ownership
 
-Before a restoration branch is pushed or a PR is created or updated, every residual
+Before a restoration branch is pushed or a PR is created or updated, every
 `UNCHANGED_TRACKED_BASELINE` and `PRE_EXISTING_NEWLY_UNMASKED` row must link to a
-canonical open issue. A newly unmasked failure without an issue blocks. After the final exit `1` and independent audit, the skill may search for or create the exact missing canonical owner before push, then rerun the baseline-restoration decision. This narrow issue-tracking step does not permit PR mutation or merge and does not apply to an unproven failure. Do not
-use a broad epic as the owner unless it contains an explicit independently
-closeable task for that exact failure.
+canonical open issue. A newly unmasked failure without an issue blocks. This
+residual ownership requirement is separate from ordinary audit-finding
+budgeting and cannot be dismissed as low value.
 
 ## PR change summary
 
-Follow `pr-change-summary-policy.md` after deferred-finding tracking completes or
+Follow `pr-change-summary-policy.md` after issue-required tracking completes or
 is not applicable.
 
-Generate the managed PR change-summary block from the final audited diff and
-exact verified HEAD. Include concrete Added, Changed, Fixed, and Removed entries;
-user-facing impact; explicit breaking changes when present; and open issue links
-for every deferred P2/P3 finding.
+Generate the managed PR block from the final audited diff and verified HEAD.
+Include concrete Added, Changed, Fixed, and Removed entries; user-facing impact;
+explicit breaking changes; retained remediation; deferred issue links; and a
+concise disposition summary.
 
-Do not use commit messages as the sole source. Do not include unsupported claims,
-secrets, private service details, customer data, or sensitive exploit guidance.
-Do not describe deferred work as fixed.
+Do not use commit messages alone. Do not include unsupported claims, secrets,
+private service details, customer data, or sensitive exploit guidance. Never
+list deferred, accepted-low-value, or dismissed work as fixed.
 
-For `FAILED_PRE_EXISTING_BASELINE`, include the exact base and branch commands,
-commits, environment/profile, target fixed failure, complete failure ledger,
-residual issue links, no-new-failure statement, truthful nonzero aggregate ship
-result, scoped-exception statement, and manual-merge requirement.
+For `FAILED_PRE_EXISTING_BASELINE`, include exact base/branch commands, commits,
+environment, target repaired failure, full failure ledger, residual owners,
+truthful nonzero result, scoped-exception statement, and manual-merge
+requirement.
 
-Detect an existing permanent changelog convention, but do not invent one. The
-presence of `CHANGELOG.md` alone does not authorize editing it. Required tracked
-changelog artifacts must be completed, audited, committed, and verified before
-the final gate; otherwise shipment is blocked.
+Detect an existing permanent changelog convention but do not invent one. The
+presence of `CHANGELOG.md` alone does not authorize editing it.
 
 ## Existing PR
 
-Do not create a duplicate.
-
-Update the body only after the deferred-finding tracking gate completes. Preserve
-useful existing context outside the managed markers. Replace the one existing
-managed change-summary block. If markers are duplicate or unmatched, stop rather
-than risking destructive PR-body edits.
+Do not create a duplicate. Update the body only after required tracking
+completes. Preserve useful existing context outside managed markers. Replace the
+single existing managed block. Duplicate or unmatched markers block mutation.
 
 ## New PR
 
-Read the real template field by field.
-
-Populate actual values.
-
-Use `N/A — <reason>` when genuinely inapplicable.
-
-Never leave unresolved placeholders.
-
-Create the PR only after the deferred-finding tracking gate completes.
+Read the real template field by field, populate actual values, and use
+`N/A — <reason>` only when genuinely inapplicable. Never leave unresolved
+placeholders. Create the PR only after required tracking completes.
 
 ## Required PR content
 
 Include:
 
-- final-diff managed change summary, including only non-empty Added, Changed,
-  Fixed, and Removed categories;
-- user-facing impact and explicit breaking or operator actions when applicable;
-- motivation;
-- requirement coverage;
+- final-diff managed change summary;
+- user-facing impact and breaking/operator actions;
+- motivation and requirement coverage;
 - impact and risk;
-- tests and validation;
-- reused versus rerun evidence;
-- testing confidence;
-- CI enforcement confidence and any documented repository-wide limitation;
-- merge eligibility and repository-policy reason;
-- planned-versus-executed evidence reconciliation;
-- deterministic preflight summary, including any deliberate `fast` skip;
-- parallel audit mode, lane count, and authoritative synthesis result;
-- audit verdict;
-- retained P0/P1 remediation;
-- explicit statement that P2/P3 findings were not modified;
-- final Repository Verification adapter/mode, explicit base, command, and
-  truthful result;
-- operating mode and source (`NORMAL`, explicit restoration, or inferred
-  restoration);
-- when applicable, `FAILED_PRE_EXISTING_BASELINE`, exact base-versus-branch
-  reproduction, complete failure ledger, every residual owner, and manual-merge
-  requirement;
+- tests, reused evidence, and newly executed evidence;
+- testing and CI-enforcement confidence;
+- planned-versus-executed reconciliation;
+- deterministic preflight and final Repository Verification;
+- parallel audit plan and authoritative verdict;
+- full finding disposition table;
+- remediated-now findings and evidence;
+- deferred issue links, reused issues, and batched mappings;
+- accepted low-value and dismissed counts with concise rationale;
+- new-issue budget use and exception rationale when exceeded;
 - exact committed SHA validated by the final gate;
-- each deferred P2/P3 finding and its open GitHub issue link;
-- permanent changelog convention and artifact status when applicable;
-- rollback;
-- repository-specific metadata;
-- when the PR targets a non-default integration branch, the post-merge manual
-  issue-reconciliation plan rather than reliance on closing keywords.
+- baseline-restoration evidence when applicable;
+- permanent changelog convention and artifact status;
+- rollback and repository-specific metadata;
+- non-default integration-branch issue-reconciliation plan.
 
 Do not imply reused evidence was freshly rerun.
 
 ## Rollback
 
-State whether rollback is:
-
-- commit revert;
-- config rollback;
-- migration reversal;
-- data repair;
-- constrained by irreversible side effects.
+State whether rollback is commit revert, config rollback, migration reversal,
+data repair, or constrained by irreversible side effects.

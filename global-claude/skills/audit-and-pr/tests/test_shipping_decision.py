@@ -100,7 +100,7 @@ class ShippingDecisionTests(unittest.TestCase):
         result = self.assess(deferred_findings_tracking_complete=False)
         self.assertEqual("HIGH", result.testing_confidence)
         self.assertEqual("BLOCKED", result.merge_eligibility)
-        self.assertIn("P2/P3", " ".join(result.merge_reasons))
+        self.assertIn("issue-required", " ".join(result.merge_reasons))
 
     def test_legacy_mode_does_not_require_repository_adapter(self):
         result = self.assess(repository_gate_applicable=False)
