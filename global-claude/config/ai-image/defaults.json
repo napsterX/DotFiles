@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "default_quality": "high",
+  "default_timeout_seconds": 900,
+  "technical_retry_attempts": 1,
+  "metadata_sidecar": true,
+  "aspects": {
+    "16:9": {"draft": [1024, 576], "standard": [1280, 720], "high": [1536, 864]},
+    "3:2": {"draft": [960, 640], "standard": [1200, 800], "high": [1536, 1024]},
+    "4:3": {"draft": [896, 672], "standard": [1152, 864], "high": [1536, 1152]},
+    "1:1": {"draft": [768, 768], "standard": [1024, 1024], "high": [1536, 1536]},
+    "9:16": {"draft": [576, 1024], "standard": [720, 1280], "high": [864, 1536]}
+  },
+  "backends": {
+    "mflux": {
+      "enabled": false,
+      "executable": "",
+      "generate_args": [],
+      "upscale_args": [],
+      "timeout_seconds": 900,
+      "environment": {}
+    }
+  },
+  "cloud": {
+    "enabled": false,
+    "provider": "",
+    "explicit_opt_in_required": true
+  }
+}

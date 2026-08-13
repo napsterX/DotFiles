@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "roles": {
+    "editorial": {
+      "provider": "local",
+      "backend": "mflux",
+      "model": "",
+      "license_approved": false,
+      "license_note": "Configure during MLX/MFLUX model setup.",
+      "parameters": {}
+    },
+    "photorealistic": {
+      "provider": "local",
+      "backend": "mflux",
+      "model": "",
+      "license_approved": false,
+      "license_note": "Configure during MLX/MFLUX model setup.",
+      "parameters": {}
+    },
+    "conceptual": {
+      "provider": "local",
+      "backend": "mflux",
+      "model": "",
+      "license_approved": false,
+      "license_note": "Configure during MLX/MFLUX model setup.",
+      "parameters": {}
+    },
+    "fast-draft": {
+      "provider": "local",
+      "backend": "mflux",
+      "model": "",
+      "license_approved": false,
+      "license_note": "Configure during MLX/MFLUX model setup.",
+      "parameters": {}
+    },
+    "typography": {
+      "provider": "local",
+      "backend": "mflux",
+      "model": "",
+      "license_approved": false,
+      "license_note": "Leave unapproved unless a reliable text model is configured.",
+      "parameters": {}
+    },
+    "editing": {
+      "provider": "local",
+      "backend": "mflux",
+      "model": "",
+      "license_approved": false,
+      "license_note": "Configure only when an editing-capable backend/model is installed.",
+      "parameters": {}
+    },
+    "upscale": {
+      "provider": "local",
+      "backend": "mflux",
+      "model": "",
+      "license_approved": false,
+      "license_note": "Configure an approved upscaler during runtime setup.",
+      "parameters": {}
+    }
+  }
+}
