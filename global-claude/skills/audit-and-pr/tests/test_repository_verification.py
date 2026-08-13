@@ -292,19 +292,57 @@ class RepositoryVerificationTests(unittest.TestCase):
         self.assertEqual(300000, len(result.stdout))
         self.assertEqual(300000, len(result.stderr))
 
-    # 22. Timeout terminates the adapter process group and blocks.
+    # 22. Timeout invokes process-group termination, and termination kills children.
     def test_22_timeout_kills_child_process_group(self) -> None:
+        # Prove the integration path without requiring the adapter to finish
+        # interpreter startup within an arbitrary wall-clock window. Under
+        # concurrent package validation on macOS, that startup assumption made
+        # this test flaky even though the timeout path itself was correct.
+        self.make_adapter("import time\ntime.sleep(60)\n")
+        with mock.patch.object(
+            rv, "_terminate_process_group", wraps=rv._terminate_process_group
+        ) as terminate_group:
+            result = self.verify_fast(timeout_seconds=2.0)
+        self.assertEqual("BLOCKED_TIMEOUT", result.status)
+        self.assertEqual(5, result.effective_exit_code)
+        terminate_group.assert_called()
+
+        # Separately prove the real process-group helper kills descendants. Wait
+        # for an explicit readiness artifact before terminating so this assertion
+        # tests cleanup semantics rather than host scheduling speed.
         pidfile = self.root / "child.pid"
-        self.make_adapter(
+        adapter = self.make_adapter(
             "import subprocess, time\n"
             f"p=subprocess.Popen(['sleep','60'])\nopen({str(pidfile)!r}, 'w').write(str(p.pid))\n"
             "time.sleep(60)\n"
         )
-        result = self.verify_fast(timeout_seconds=2.0)
-        self.assertEqual("BLOCKED_TIMEOUT", result.status)
-        self.assertEqual(5, result.effective_exit_code)
-        self.assertTrue(pidfile.exists())
-        child_pid = int(pidfile.read_text())
+        process = subprocess.Popen(
+            [str(adapter), "fast", "--base", "origin/main"],
+            cwd=str(self.repo),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            start_new_session=True,
+        )
+        try:
+            ready_deadline = time.time() + 10
+            while (
+                not pidfile.exists()
+                and process.poll() is None
+                and time.time() < ready_deadline
+            ):
+                time.sleep(0.05)
+            self.assertTrue(
+                pidfile.exists(),
+                "adapter did not create the child readiness pidfile",
+            )
+            child_pid = int(pidfile.read_text())
+            rv._terminate_process_group(process)
+        finally:
+            if process.poll() is None:
+                rv._terminate_process_group(process)
+
         deadline = time.time() + 3
         alive = True
         while time.time() < deadline:
@@ -315,11 +353,14 @@ class RepositoryVerificationTests(unittest.TestCase):
                 text=True,
                 check=False,
             )
-            alive = probe.returncode == 0 and bool(probe.stdout.strip())
+            state = probe.stdout.strip()
+            # A zombie has already terminated; it cannot execute or retain the
+            # inherited capture pipes whose cleanup this helper protects.
+            alive = probe.returncode == 0 and bool(state) and not state.startswith("Z")
             if not alive:
                 break
             time.sleep(0.1)
-        self.assertFalse(alive, f"child process {child_pid} survived timeout")
+        self.assertFalse(alive, f"child process {child_pid} survived termination")
 
     # 23. User interruption blocks and returns effective exit 5.
     def test_23_interrupt_blocks(self) -> None:
