@@ -109,31 +109,48 @@ Evidence Contract:
 - Reconciliation status: COMPLETE / INCOMPLETE / BLOCKED
 
 Final Independent Audit:
-- Verdict:
+- Verdict: ACCEPTED / ACCEPTED_WITH_LOW_RISK_RESIDUALS / BLOCKED_P0_P1 / BLOCKED_VERIFICATION / AUDIT_BLOCKED
 - Risk:
 - P0 remaining:
 - P1 remaining:
-- P2 deferred — code unchanged:
-- P3 deferred — code unchanged:
-- Objective-required finding incorrectly classified as P2/P3: YES / NO
 - Why deterministic verification was or was not sufficient evidence:
 
-Finding Disposition:
-- P0/P1 remediation candidates:
-- P0/P1 blockers not safely remediable:
-- Confirmed P2/P3 excluded from remediation:
-- Audit-process notes excluded from ticketing:
-- Severity downgrades used to avoid remediation: NONE / <blocker>
+Finding Disposition Table:
+| Finding | Severity | Disposition | In current scope? | Rationale | Issue or repair evidence |
+|---------|----------|-------------|-------------------|-----------|--------------------------|
+| ... | P0/P1/P2/P3 | FIX_NOW / DEFER_TO_ISSUE / ADD_TO_EXISTING_ISSUE / BATCH_INTO_CLEANUP_ISSUE / ACCEPT_AS_LOW_VALUE / DISMISS / BLOCK_ACCEPTANCE | YES/NO | ... | ... |
 
-Remediation:
-- Eligible priorities: P0 / P1 only
+Disposition Integrity:
+- Every material finding has severity and disposition: YES / NO
+- Acceptance-critical finding deferred or dismissed: NONE / <blocker>
+- Severity downgrade used to avoid remediation: NONE / <blocker>
+- Issue gate failures unresolved: NONE / <blocker>
+- New-issue budget: <used>/3
+- Budget exception: <explanation> / NOT_APPLICABLE
+
+Remediated Now:
 - Rounds used:
 - Single writer: YES / NO
-- Retained P0/P1 fixes:
-  - <finding, original priority, change, targeted validation, optional fast rerun, re-audit>
-- Deferred P2/P3 code modifications: NONE / <blocker>
+- Findings:
+  - <finding, severity, why immediate repair was appropriate, change, targeted validation, optional fast rerun, independent complete-diff re-audit>
+- Post-remediation review: PASS / BLOCKED_REVIEW_INCOMPLETE / BLOCKED_REGRESSION / NOT_APPLICABLE
 - Reverted attempts:
 - Post-remediation fast runs: <HEAD, command, result, reason> / NONE
+
+Deferred With Issues:
+- <finding, severity, impact, evidence, why deferred, proposed remediation, acceptance criteria, components/files, priority, dependencies, issue URL, repository-specific agent route when already supported>
+
+Added To Existing Issues:
+- <finding, severity, issue URL, evidence added>
+
+Batched Findings:
+- <batch issue URL, shared root cause/outcome, included finding IDs, why batching is economically justified>
+
+Accepted Low-Value Findings:
+- <finding, severity, rationale for no repair and no permanent backlog>
+
+Dismissed Findings:
+- <finding, severity, duplicate/speculative/irrelevant/outdated/subjective/non-actionable/unsupported rationale>
 
 Final Repository Verification:
 - Adapter: ./scripts/verify / not present / invalid
@@ -180,17 +197,33 @@ Testing:
 - Deliberately omitted:
 - Unable to validate:
 
-Deferred Finding Tracking:
+Issue-Required Finding Tracking:
 - Status: COMPLETE / NOT_APPLICABLE / TRACKING BLOCKED
-- Confirmed P2/P3 findings:
+- Findings requiring issues:
 - Findings mapped to equivalent open issues:
 - Reused open issues:
 - Newly created issues:
-- Grouped P3 mappings:
+- New-issue budget used: <n>/3
+- Budget exception explained: YES / NO / NOT_APPLICABLE
+- Batched mappings:
 - Findings:
-  - <finding ID, priority, code unchanged, issue URL, reused/new>
-- Untracked findings: NONE / <finding and reason>
-- GitHub unavailable or issue creation failure: NONE / <reason>
+  - <finding ID, severity, disposition, issue URL, reused/new/batched>
+- Untracked issue-required findings: NONE / <finding and reason>
+- GitHub unavailable or issue mutation failure: NONE / <reason>
+
+Final Acceptance Decision:
+- ACCEPTED
+- ACCEPTED_WITH_EXPLICITLY_DOCUMENTED_LOW_RISK_RESIDUALS
+- BLOCKED_BY_UNRESOLVED_P0_P1
+- BLOCKED_BY_REQUIRED_VERIFICATION
+- AUDIT_BLOCKED
+- Rationale:
+
+Historical Backlog Hygiene:
+- Performed by this run: NO
+- Recommended separate bounded operation: YES / NO
+- Suggested classifications: KEEP / MERGE / CLOSE_DUPLICATE / CLOSE_OBSOLETE / CLOSE_NON_ACTIONABLE / CLOSE_LOW_VALUE / CONSOLIDATE
+- Rationale:
 
 PR Change Summary:
 - Source HEAD:
@@ -198,7 +231,8 @@ PR Change Summary:
 - Included categories: Added / Changed / Fixed / Removed / NONE
 - User-facing impact: PRESENT / NO_EXTERNAL_CHANGE
 - Breaking changes: PRESENT / NONE
-- Deferred issue links included: <count>
+- Issue-required links included: <count>
+- Finding-disposition summary included: YES / NO
 - Existing PR content preserved outside managed block: YES / NO / NOT_APPLICABLE
 - Permanent changelog convention: NONE / CHANGELOG_FILE / CHANGESETS / TOWNCRIER / CUSTOM_FRAGMENT
 - Permanent artifact action: PR_BODY_ONLY / VALIDATE_EXISTING / CREATE_REQUIRED_ARTIFACT / BLOCKED
@@ -260,7 +294,7 @@ Smallest Safe Follow-up Prompt:
 
 Keep operating mode, deterministic preflight, baseline-restoration comparison
 and ledger, parallel audit execution, evidence reconciliation, finding
-disposition, deferred-finding tracking, final Repository Verification,
+disposition, issue-required tracking, final Repository Verification,
 independent audit, testing confidence, CI enforcement confidence, CI result, PR
 state, merge eligibility, issue reconciliation, and merge result separate. Never collapse the result into “tests passed” or
 imply any adapter exit `0` is audit approval.
@@ -273,15 +307,15 @@ Report the limitation under CI Enforcement Confidence and its effect under Merge
 Eligibility.
 
 
-If deferred-finding tracking blocks, state explicitly:
+If issue-required tracking blocks, state explicitly:
 
 - the final exact-HEAD repository gate passed before remote tracking began;
 - whether the branch was pushed;
 - no PR was created or updated after tracking failed;
 - no merge was attempted;
-- every confirmed P2/P3 still lacking an equivalent open issue;
+- every issue-required finding still lacking an equivalent open issue;
 - GitHub search or creation failure evidence without exposing credentials;
-- that P2/P3 code remained unchanged.
+- that non-`FIX_NOW` findings remained unchanged.
 
 ## Adapter-present example
 

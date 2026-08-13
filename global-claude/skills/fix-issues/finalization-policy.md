@@ -75,8 +75,8 @@ effect.
 `/audit-and-pr` exclusively owns:
 
 - independent audit and risk-adaptive audit lanes;
-- bounded P0/P1 remediation and re-audit;
-- P2/P3 audit-finding issue tracking;
+- risk-based `FIX_NOW` remediation and independent re-audit;
+- issue-gated tracking only for findings whose dispositions require it;
 - final exact-HEAD ship gate;
 - push and PR generation/update;
 - CI and merge disposition;

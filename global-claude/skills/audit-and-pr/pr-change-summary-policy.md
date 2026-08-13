@@ -12,7 +12,8 @@ The summary must help a reviewer answer:
 - whether users, operators, APIs, schemas, configuration, or compatibility are
   affected;
 - whether any breaking action is required;
-- which confirmed P2/P3 findings were deferred to open GitHub issues;
+- which findings were remediated now, deferred to open issues, added to existing
+  issues, batched, accepted as low value, or dismissed;
 - when applicable, exactly how an already-red mandatory lane improved without
   introducing any new or unattributed failure.
 
@@ -24,8 +25,8 @@ Generate the summary from:
 - the final audited diff and exact committed `HEAD`;
 - tests and verification evidence;
 - API, schema, migration, configuration, operational, and compatibility changes;
-- retained P0/P1 remediation;
-- the final deferred-finding tracking ledger.
+- retained `FIX_NOW` remediation;
+- the final severity/disposition table and issue-tracking ledger.
 
 Do not derive the summary from commit messages alone. Do not describe an earlier
 HEAD after remediation, recommit, or final-gate retry changes the candidate.
@@ -35,7 +36,7 @@ A draft may be prepared while the final ship gate runs, but it is not final unti
 1. the exact committed HEAD receives `NORMAL_GREEN`, successful legacy
    validation, or a complete `FAILED_PRE_EXISTING_BASELINE` classification;
 2. the branch is pushed successfully;
-3. deferred P2/P3 issue tracking is complete or not applicable.
+3. issue-required finding tracking is complete or not applicable.
 
 If the final audited HEAD changes, regenerate the managed summary before PR
 creation or update.
@@ -66,8 +67,13 @@ Use one managed block:
 ## Breaking changes
 - ...
 
-## Deferred findings
-- #123 — P2: ...
+## Finding disposition
+- Remediated now: ...
+- Deferred: #123 — P2: ...
+- Added to existing issue: #456 — P3: ...
+- Batched: #789 — 8 related P3 findings
+- Accepted low value: 2
+- Dismissed: 3
 <!-- audit-and-pr:change-summary:end -->
 ```
 
@@ -79,10 +85,11 @@ Rules:
 - Include `Breaking changes` only when a breaking or required operator action
   exists. State the migration, deployment, configuration, compatibility, or
   rollback requirement explicitly.
-- Include `Deferred findings` only when confirmed P2/P3 findings exist. Every
-  bullet must link to the equivalent open issue established by the tracking
-  gate.
-- Never list deferred P2/P3 findings as fixed.
+- Include `Finding disposition` when the audit produced any finding. List
+  issue-required findings with equivalent open links, batched mappings, and
+  concise counts or rationale for accepted-low-value and dismissed findings.
+- Never list deferred, batched, accepted-low-value, or dismissed findings as
+  fixed.
 - Do not print empty headings or unresolved placeholders.
 - Preserve user-authored and repository-template content outside the managed
   block.
@@ -170,7 +177,8 @@ When an established workflow requires an entry:
 
 1. determine whether the change qualifies under repository policy;
 2. verify an existing required fragment or entry against the final audited diff;
-3. never describe deferred P2/P3 work as completed;
+3. never describe deferred, batched, accepted-low-value, or dismissed work as
+   completed;
 4. create or edit the artifact only when repository instructions explicitly
    authorize this workflow and prescribe a deterministic format;
 5. treat the artifact as audited shipment metadata, include it in scope, and run
@@ -191,7 +199,7 @@ Record:
 - included categories;
 - user-facing impact classification;
 - breaking-change status;
-- deferred issue links included;
+- disposition summary and issue-required links included;
 - baseline-restoration classification, target, exact commands/results, complete
   ledger, issue owners, and manual-merge statement when applicable;
 - detected permanent changelog convention;

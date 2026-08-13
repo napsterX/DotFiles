@@ -78,7 +78,7 @@ Keep these fields separate through the entire PR phase:
 - `testing_confidence`: HIGH / MODERATE / LOW;
 - `ci_enforcement_confidence`: HIGH / MODERATE / LOW / NOT_APPLICABLE;
 - `merge_eligibility`: AUTO_MERGE_ELIGIBLE / MANUAL_MERGE_REQUIRED / BLOCKED;
-- `deferred_findings_tracking`: COMPLETE / NOT_APPLICABLE / TRACKING BLOCKED;
+- `deferred_findings_tracking`: COMPLETE / NOT_APPLICABLE / TRACKING BLOCKED (compatibility field meaning issue-required dispositions only);
 - `shipment_classification`: NORMAL_GREEN / FAILED_PRE_EXISTING_BASELINE / BLOCKED.
 
 A documented repository-wide CI coverage limitation does not lower testing
@@ -107,8 +107,7 @@ Automatic merge requires all:
 - protection allows merge without bypass;
 - no unaudited commits appeared;
 - no P0/P1 remains;
-- deferred-finding tracking is COMPLETE or NOT_APPLICABLE, with every confirmed
-  P2/P3 mapped to an equivalent open GitHub issue.
+- issue-required tracking is COMPLETE or NOT_APPLICABLE, with every `DEFER_TO_ISSUE`, `ADD_TO_EXISTING_ISSUE`, and `BATCH_INTO_CLEANUP_ISSUE` finding mapped to an equivalent open GitHub issue.
 
 Immediately before merge, confirm the PR head SHA still equals the SHA that
 passed `./scripts/verify ship --base <resolved-base>` when the adapter is present, or the final legacy validation when absent. If it differs, stop and restart from audit of the
@@ -196,9 +195,7 @@ Never:
 
 If merge fails because repository controls block it, report and stop.
 
-If deferred-finding tracking is incomplete, merge is blocked independently of
-CI, review, and protection state. Do not treat a green PR as permission to merge
-while a confirmed P2/P3 lacks an open issue link.
+If issue-required finding tracking is incomplete, merge is blocked independently of CI, review, and protection state. Do not treat a green PR as permission to merge while a disposition requiring permanent tracking lacks an open issue link. `ACCEPT_AS_LOW_VALUE` and `DISMISS` do not require issues when their rationale is valid.
 
 ## Merge method
 
