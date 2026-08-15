@@ -1,9 +1,12 @@
 # Editorial visual identity
 
-This is the packaged fallback visual identity. The installer initializes the
-user-editable canonical file at `~/.claude/editorial/visual-style.md`; when that
-file exists, use it instead of this fallback. Keep site/publication art direction
-there so skill upgrades do not erase it.
+This is the packaged **generic fallback** visual identity. Repository-specific
+art direction belongs in the repository publication contract, normally
+`.editorial/visual-system.md`, and takes precedence when declared authoritative.
+The installer may initialize the user-editable
+`~/.claude/editorial/visual-style.md` as a cross-repository fallback; keep only
+preferences that should apply when a repository has not supplied its own visual
+system.
 
 ## Default direction
 
@@ -44,8 +47,9 @@ specifically requires them.
 - rocket ships as growth;
 - generic laptop-at-desk compositions.
 
-## Publication-specific overrides
+## User-level fallback overrides
 
-Add publication/site-specific palette, illustration style, photography rules,
-diagram language, crop requirements, typography policy, and additional banned
-motifs below this line. Keep machine-specific model details out of this file.
+Add only durable preferences that should apply across repositories **when no
+repository-specific visual system is declared**. Keep product-specific palette,
+components, typography, and publication identity in the repository contract.
+Keep machine-specific model details out of this file.

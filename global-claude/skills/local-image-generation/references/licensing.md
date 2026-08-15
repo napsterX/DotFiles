@@ -16,6 +16,7 @@ For every configured production model record:
 `ai-image` must refuse production generation when the selected role/model is not
 explicitly approved. Unknown means not approved.
 
-This package does not make legal conclusions about model licenses. The runtime
-setup task must populate the model records based on the actual selected model
-licenses and intended use.
+This skill does not make legal conclusions about model licenses. The separately
+managed runtime setup must populate the model records based on the actual
+selected model licenses and intended use. The skill package does not own or
+modify those runtime configuration files.

@@ -11,7 +11,9 @@ disable-model-invocation: false
 
 Provide a stable local-first image-generation boundary for Claude Code. The
 caller specifies the visual objective; this skill chooses the configured
-technical route and invokes `ai-image`.
+technical route and invokes `ai-image`. The `ai-image` executable and its
+configuration are **externally managed prerequisites**. This skill package must
+not install, update, replace, back up, delete, or copy them.
 
 This skill is reusable outside articles: website assets, README images, product
 concepts, editorial illustrations, design exploration, marketing assets, image
@@ -70,7 +72,8 @@ must inspect and accept/reject the actual asset.
 Grant Claude Code permission to invoke the narrow `ai-image` wrapper rather than
 adding broad backend-specific shell permissions merely for image generation. The
 wrapper is the controlled boundary. No MCP server or long-running daemon is
-required by this package.
+required by this skill. The package assumes the user has separately installed
+and configured `ai-image`; it does not own that runtime.
 
 ## Stable invocation
 
@@ -137,8 +140,9 @@ caller, allows at most three quality-directed local attempts by default.
 
 ## Cloud fallback
 
-No paid cloud image provider is required or enabled by this package. A future
-provider may be configured behind the same `ai-image` contract. Cloud escalation
+No paid cloud image provider is required or enabled by this skill. A future
+provider may be configured behind the same externally managed `ai-image`
+contract. Cloud escalation
 may occur only when:
 
 - a provider is explicitly configured;

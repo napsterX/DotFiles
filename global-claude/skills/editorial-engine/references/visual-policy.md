@@ -3,6 +3,13 @@
 Visual utility outranks visual quantity. A candidate visual must perform a
 useful editorial job. `Make the page less text-heavy` is normally insufficient.
 
+For long-form rendered publication, also inspect **cognitive transitions,
+information density, and page-level cadence**. This is not a visual quota: never
+require an image every N words. Instead ask whether a diagram, comparison, real
+source asset, checklist, table, chart, quote, photograph, or conceptual visual
+communicates a specific idea better than another paragraph. Use
+`publication-composition.md` for page-level composition rules.
+
 ## Classification
 
 ### Explanatory
@@ -117,3 +124,31 @@ For accepted assets produce, as applicable:
 - source/attribution metadata;
 - placement;
 - asset path/article reference.
+
+
+## Repository visual-system precedence
+
+When a valid repository publication contract declares a repository visual system
+as authoritative, apply that product-specific palette, illustration grammar,
+photography policy, diagram language, crop behavior, component semantics, and
+banned motifs beneath the universal authenticity/truth rules.
+
+Do not copy those product-specific rules into this global policy. The packaged
+and user-level visual-style files are fallback art direction only when the
+repository does not declare its own authoritative visual system.
+
+## Page-level visual audit
+
+When reviewing a rendered article, do not evaluate assets in isolation. Also ask:
+
+- Does the page have useful density variation or is every viewport equally busy?
+- Are visuals placed at genuine conceptual transitions?
+- Are repeated callouts/boxes doing work, or merely adding chrome?
+- Does a visual form improve comprehension enough to justify its footprint?
+- Are deterministic figures used instead of generated imagery where labels,
+  values, or precise relationships matter?
+- Does the visual system remain coherent across hero, inline figures, related
+  content, and responsive crops?
+
+A technically strong image can still be rejected when it damages the page's
+composition or feels generic relative to the repository publication identity.

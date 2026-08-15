@@ -54,7 +54,9 @@ Resolution enhancement or restoration using a configured upscaler.
 
 ## Updating models
 
-Edit the installed `models.json`/local override rather than `SKILL.md`. Document
+Edit the externally managed `ai-image` model-routing configuration/local
+override rather than `SKILL.md`. This package must not install, replace, or back
+up that configuration. Document
 for each model:
 
 - role strengths;

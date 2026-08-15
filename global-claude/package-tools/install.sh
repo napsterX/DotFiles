@@ -5,8 +5,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_SKILLS="$SCRIPT_DIR/skills"
 PACKAGE_AGENTS="$SCRIPT_DIR/agents"
 PACKAGE_SESSION_CONTINUITY="$SCRIPT_DIR/session-continuity"
-PACKAGE_BIN="$SCRIPT_DIR/bin"
-PACKAGE_AI_IMAGE_CONFIG="$SCRIPT_DIR/config/ai-image"
 PACKAGE_EDITORIAL_CONFIG="$SCRIPT_DIR/config/editorial"
 MANIFEST="$SCRIPT_DIR/MANIFEST"
 AGENTS_MANIFEST="$SCRIPT_DIR/AGENTS_MANIFEST"
@@ -16,15 +14,11 @@ CLAUDE_ROOT="${CLAUDE_ROOT:-$HOME/.claude}"
 INSTALL_ROOT="$CLAUDE_ROOT/skills"
 AGENTS_INSTALL_ROOT="$CLAUDE_ROOT/agents"
 SESSION_CONTINUITY_INSTALL_ROOT="$CLAUDE_ROOT/session-continuity"
-LOCAL_BIN_ROOT="${LOCAL_BIN_ROOT:-$HOME/.local/bin}"
-AI_IMAGE_CONFIG_ROOT="${AI_IMAGE_CONFIG_ROOT:-$HOME/.config/ai-image}"
 EDITORIAL_CONFIG_ROOT="${EDITORIAL_CONFIG_ROOT:-$CLAUDE_ROOT/editorial}"
 DOTFILES_REPO="${DOTFILES_REPO:-$HOME/git/DotFiles}"
 DOTFILES_SKILLS_REL="global-claude/skills"
 DOTFILES_AGENTS_REL="global-claude/agents"
 DOTFILES_SESSION_CONTINUITY_REL="global-claude/session-continuity"
-DOTFILES_BIN_REL="global-claude/bin"
-DOTFILES_AI_IMAGE_CONFIG_REL="global-claude/config/ai-image"
 DOTFILES_EDITORIAL_CONFIG_REL="global-claude/editorial"
 DOTFILES_PACKAGE_TOOLS_REL="global-claude/package-tools"
 DOTFILES_SETTINGS_REL="global-claude/settings.json"
@@ -61,8 +55,6 @@ Environment overrides:
   CLAUDE_ROOT             Claude configuration root. Default: ~/.claude
   DOTFILES_REPO           Existing local DotFiles checkout. Default: ~/git/DotFiles
   DOTFILES_TARGET_BRANCH  Same as --target-branch.
-  LOCAL_BIN_ROOT           ai-image install directory. Default: ~/.local/bin
-  AI_IMAGE_CONFIG_ROOT     ai-image active configuration. Default: ~/.config/ai-image
   EDITORIAL_CONFIG_ROOT    editorial visual config. Default: ~/.claude/editorial
 USAGE
 }
@@ -107,27 +99,13 @@ command -v rsync >/dev/null 2>&1 || fail "rsync is required"
 [[ -f "$AGENTS_MANIFEST" ]] || fail "agents manifest not found: $AGENTS_MANIFEST"
 [[ -x "$VALIDATOR" ]] || fail "validator not executable: $VALIDATOR"
 [[ -x "$HOOK_REPAIR" ]] || fail "hook repair helper not executable: $HOOK_REPAIR"
-[[ -x "$PACKAGE_BIN/ai-image" ]] || fail "ai-image wrapper missing or not executable"
-[[ -f "$PACKAGE_AI_IMAGE_CONFIG/defaults.json" ]] || fail "ai-image defaults missing"
-[[ -f "$PACKAGE_AI_IMAGE_CONFIG/models.json" ]] || fail "ai-image model routing config missing"
 [[ -f "$PACKAGE_EDITORIAL_CONFIG/visual-style.md" ]] || fail "editorial visual-style config missing"
 
-case ":$PATH:" in
-  *":$LOCAL_BIN_ROOT:"*) ;;
-  *) fail "$LOCAL_BIN_ROOT is not on PATH; add it to PATH before installation so ai-image is callable" ;;
-esac
-
-if [[ -f "$AI_IMAGE_CONFIG_ROOT/defaults.json" || -f "$AI_IMAGE_CONFIG_ROOT/models.json" ]]; then
-  if [[ ! -f "$AI_IMAGE_CONFIG_ROOT/defaults.json" || ! -f "$AI_IMAGE_CONFIG_ROOT/models.json" ]]; then
-    log "Existing ai-image config is partial; missing files will be initialized from package defaults."
-  else
-    AI_IMAGE_CONFIG_DIR="$AI_IMAGE_CONFIG_ROOT" "$PACKAGE_BIN/ai-image" config --json >/dev/null \
-      || fail "existing ai-image configuration is invalid; repair or move it before installation"
-  fi
-fi
+# ai-image and its configuration are intentionally external to this package.
+# Do not validate, back up, copy, install, update, or remove that user-managed runtime.
 
 log "Validating package..."
-# Installer validation focuses on the packaged skill/agent/CLI contracts. The
+# Installer validation focuses on the packaged skill/agent contracts. The
 # unchanged session-continuity and hook-repair unit suites are shipped for
 # explicit maintenance verification, but are not rerun during every install;
 # running both process-heavy suites back-to-back with repository-verification
@@ -251,12 +229,9 @@ if [[ "$DRY_RUN" == true ]]; then
   log "DRY RUN COMPLETE — no files or Git references were changed."
   log "Would back up replaced and removed skills under: $BACKUP_ROOT"
   log "Would install session continuity helper into: $SESSION_CONTINUITY_INSTALL_ROOT"
-  log "Would install ai-image into: $LOCAL_BIN_ROOT/ai-image"
-  log "Would preserve active ai-image config and refresh package defaults under: $AI_IMAGE_CONFIG_ROOT"
   log "Would preserve/editable editorial visual style under: $EDITORIAL_CONFIG_ROOT"
+  log "Would leave the externally managed ai-image binary and configuration completely untouched."
   log "Would synchronize package-owned session continuity files into: $DOTFILES_REPO/$DOTFILES_SESSION_CONTINUITY_REL"
-  log "Would synchronize ai-image into: $DOTFILES_REPO/$DOTFILES_BIN_REL"
-  log "Would synchronize portable ai-image config into: $DOTFILES_REPO/$DOTFILES_AI_IMAGE_CONFIG_REL"
   log "Would synchronize editorial visual style into: $DOTFILES_REPO/$DOTFILES_EDITORIAL_CONFIG_REL"
   log "Would synchronize package install/uninstall/verify tools into: $DOTFILES_REPO/$DOTFILES_PACKAGE_TOOLS_REL"
   log "Would repair stale hook references in local and tracked global Claude settings."
@@ -320,15 +295,6 @@ while IFS= read -r agent; do
   fi
 done < "$AGENTS_MANIFEST"
 
-if [[ -f "$LOCAL_BIN_ROOT/ai-image" ]]; then
-  mkdir -p "$BACKUP_ROOT/bin"
-  cp -p "$LOCAL_BIN_ROOT/ai-image" "$BACKUP_ROOT/bin/ai-image"
-fi
-if [[ -d "$AI_IMAGE_CONFIG_ROOT" ]]; then
-  mkdir -p "$BACKUP_ROOT/config/ai-image"
-  rsync -a "$AI_IMAGE_CONFIG_ROOT/" "$BACKUP_ROOT/config/ai-image/"
-fi
-
 if [[ -d "$EDITORIAL_CONFIG_ROOT" ]]; then
   mkdir -p "$BACKUP_ROOT/editorial"
   rsync -a "$EDITORIAL_CONFIG_ROOT/" "$BACKUP_ROOT/editorial/"
@@ -355,42 +321,12 @@ done < "$AGENTS_MANIFEST"
 rm -rf "$INSTALL_ROOT/no-mistakes" "$INSTALL_ROOT/$LEGACY_SKILL" "$INSTALL_ROOT/$RETIRED_SKILL"
 rm -f "$AGENTS_INSTALL_ROOT/$LEGACY_AGENT.md"
 
-log "Installing ai-image into: $LOCAL_BIN_ROOT/ai-image"
-mkdir -p "$LOCAL_BIN_ROOT"
-install -m 0755 "$PACKAGE_BIN/ai-image" "$LOCAL_BIN_ROOT/ai-image"
-
-log "Installing ai-image portable configuration into: $AI_IMAGE_CONFIG_ROOT"
-mkdir -p "$AI_IMAGE_CONFIG_ROOT"
-install -m 0644 "$PACKAGE_AI_IMAGE_CONFIG/defaults.json" "$AI_IMAGE_CONFIG_ROOT/defaults.dist.json"
-install -m 0644 "$PACKAGE_AI_IMAGE_CONFIG/models.json" "$AI_IMAGE_CONFIG_ROOT/models.dist.json"
-install -m 0644 "$PACKAGE_AI_IMAGE_CONFIG/README.md" "$AI_IMAGE_CONFIG_ROOT/README.md"
-if [[ ! -f "$AI_IMAGE_CONFIG_ROOT/defaults.json" ]]; then
-  install -m 0644 "$PACKAGE_AI_IMAGE_CONFIG/defaults.json" "$AI_IMAGE_CONFIG_ROOT/defaults.json"
-fi
-if [[ ! -f "$AI_IMAGE_CONFIG_ROOT/models.json" ]]; then
-  install -m 0644 "$PACKAGE_AI_IMAGE_CONFIG/models.json" "$AI_IMAGE_CONFIG_ROOT/models.json"
-fi
-AI_IMAGE_CONFIG_DIR="$AI_IMAGE_CONFIG_ROOT" "$LOCAL_BIN_ROOT/ai-image" config --json >/dev/null \
-  || fail "installed ai-image could not load its active configuration"
-
 log "Installing editable editorial visual style into: $EDITORIAL_CONFIG_ROOT"
 mkdir -p "$EDITORIAL_CONFIG_ROOT"
 install -m 0644 "$PACKAGE_EDITORIAL_CONFIG/visual-style.md" "$EDITORIAL_CONFIG_ROOT/visual-style.dist.md"
 if [[ ! -f "$EDITORIAL_CONFIG_ROOT/visual-style.md" ]]; then
   install -m 0644 "$PACKAGE_EDITORIAL_CONFIG/visual-style.md" "$EDITORIAL_CONFIG_ROOT/visual-style.md"
 fi
-
-RESOLVED_AI_IMAGE="$(command -v ai-image 2>/dev/null || true)"
-[[ -n "$RESOLVED_AI_IMAGE" ]] || fail "ai-image was installed but is not resolvable on PATH"
-python3 - "$RESOLVED_AI_IMAGE" "$LOCAL_BIN_ROOT/ai-image" <<'PYAI' \
-  || fail "ai-image on PATH resolves a different executable; expected $LOCAL_BIN_ROOT/ai-image"
-import os, sys
-try:
-    ok = os.path.samefile(sys.argv[1], sys.argv[2])
-except OSError:
-    ok = False
-raise SystemExit(0 if ok else 1)
-PYAI
 
 log "Installing package-owned session continuity files into: $SESSION_CONTINUITY_INSTALL_ROOT"
 mkdir -p "$SESSION_CONTINUITY_INSTALL_ROOT/bin" "$SESSION_CONTINUITY_INSTALL_ROOT/tests"
@@ -436,8 +372,6 @@ git -C "$DOTFILES_CLONE" checkout --quiet -b "$UPDATE_BRANCH"
 mkdir -p "$DOTFILES_CLONE/$DOTFILES_SKILLS_REL" "$DOTFILES_CLONE/$DOTFILES_AGENTS_REL" \
   "$DOTFILES_CLONE/$DOTFILES_SESSION_CONTINUITY_REL/bin" \
   "$DOTFILES_CLONE/$DOTFILES_SESSION_CONTINUITY_REL/tests" \
-  "$DOTFILES_CLONE/$DOTFILES_BIN_REL" \
-  "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL" \
   "$DOTFILES_CLONE/$DOTFILES_EDITORIAL_CONFIG_REL" \
   "$DOTFILES_CLONE/$DOTFILES_PACKAGE_TOOLS_REL"
 install -m 0755 "$PACKAGE_SESSION_CONTINUITY/bin/session_state.py" \
@@ -445,12 +379,6 @@ install -m 0755 "$PACKAGE_SESSION_CONTINUITY/bin/session_state.py" \
 install -m 0755 "$PACKAGE_SESSION_CONTINUITY/tests/test_session_state.py" \
   "$DOTFILES_CLONE/$DOTFILES_SESSION_CONTINUITY_REL/tests/test_session_state.py"
 
-install -m 0755 "$PACKAGE_BIN/ai-image" "$DOTFILES_CLONE/$DOTFILES_BIN_REL/ai-image"
-install -m 0644 "$AI_IMAGE_CONFIG_ROOT/defaults.json" "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL/defaults.json"
-install -m 0644 "$AI_IMAGE_CONFIG_ROOT/models.json" "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL/models.json"
-install -m 0644 "$PACKAGE_AI_IMAGE_CONFIG/defaults.json" "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL/defaults.dist.json"
-install -m 0644 "$PACKAGE_AI_IMAGE_CONFIG/models.json" "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL/models.dist.json"
-install -m 0644 "$PACKAGE_AI_IMAGE_CONFIG/README.md" "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL/README.md"
 install -m 0644 "$EDITORIAL_CONFIG_ROOT/visual-style.md" "$DOTFILES_CLONE/$DOTFILES_EDITORIAL_CONFIG_REL/visual-style.md"
 install -m 0644 "$PACKAGE_EDITORIAL_CONFIG/visual-style.md" "$DOTFILES_CLONE/$DOTFILES_EDITORIAL_CONFIG_REL/visual-style.dist.md"
 install -m 0755 "$SCRIPT_DIR/install.sh" "$DOTFILES_CLONE/$DOTFILES_PACKAGE_TOOLS_REL/install.sh"
@@ -458,7 +386,6 @@ install -m 0755 "$SCRIPT_DIR/uninstall.sh" "$DOTFILES_CLONE/$DOTFILES_PACKAGE_TO
 install -m 0755 "$SCRIPT_DIR/verify.sh" "$DOTFILES_CLONE/$DOTFILES_PACKAGE_TOOLS_REL/verify.sh"
 install -m 0644 "$SCRIPT_DIR/VERSION" "$DOTFILES_CLONE/$DOTFILES_PACKAGE_TOOLS_REL/VERSION"
 
-rm -f "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL/local.json"
 
 # Track a recovered stop hook without deleting any other continuity hooks.
 if [[ -f "$SESSION_CONTINUITY_INSTALL_ROOT/hooks/stop_notify.py" ]]; then
@@ -499,19 +426,6 @@ python3 "$VALIDATOR" \
   --agents-manifest "$AGENTS_MANIFEST" \
   --allow-extra
 
-AI_IMAGE_CONFIG_DIR="$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL" \
-  "$DOTFILES_CLONE/$DOTFILES_BIN_REL/ai-image" config --json >/dev/null \
-  || fail "DotFiles ai-image/config copy failed validation"
-cmp -s "$PACKAGE_BIN/ai-image" "$DOTFILES_CLONE/$DOTFILES_BIN_REL/ai-image" \
-  || fail "DotFiles ai-image differs from validated package"
-cmp -s "$AI_IMAGE_CONFIG_ROOT/defaults.json" "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL/defaults.json" \
-  || fail "DotFiles active ai-image defaults differ from installed configuration"
-cmp -s "$AI_IMAGE_CONFIG_ROOT/models.json" "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL/models.json" \
-  || fail "DotFiles active ai-image models differ from installed configuration"
-cmp -s "$PACKAGE_AI_IMAGE_CONFIG/defaults.json" "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL/defaults.dist.json" \
-  || fail "DotFiles ai-image defaults.dist differs from package"
-cmp -s "$PACKAGE_AI_IMAGE_CONFIG/models.json" "$DOTFILES_CLONE/$DOTFILES_AI_IMAGE_CONFIG_REL/models.dist.json" \
-  || fail "DotFiles ai-image models.dist differs from package"
 cmp -s "$EDITORIAL_CONFIG_ROOT/visual-style.md" "$DOTFILES_CLONE/$DOTFILES_EDITORIAL_CONFIG_REL/visual-style.md" \
   || fail "DotFiles editorial visual style differs from installed configuration"
 
@@ -519,8 +433,6 @@ DOTFILES_UPDATE_PATHS=(
   "$DOTFILES_SKILLS_REL"
   "$DOTFILES_AGENTS_REL"
   "$DOTFILES_SESSION_CONTINUITY_REL"
-  "$DOTFILES_BIN_REL"
-  "$DOTFILES_AI_IMAGE_CONFIG_REL"
   "$DOTFILES_EDITORIAL_CONFIG_REL"
   "$DOTFILES_PACKAGE_TOOLS_REL"
 )
@@ -569,9 +481,8 @@ log ""
 log "Installation complete."
 log "Installed skills: $(tr '\n' ' ' < "$MANIFEST" | sed 's/[[:space:]]*$//')"
 log "Installed session continuity helper: $SESSION_CONTINUITY_INSTALL_ROOT/bin/session_state.py"
-log "Installed ai-image: $LOCAL_BIN_ROOT/ai-image"
-log "ai-image config: $AI_IMAGE_CONFIG_ROOT (local.json preserved when present)"
 log "Editorial visual style: $EDITORIAL_CONFIG_ROOT/visual-style.md"
+log "ai-image runtime/configuration: externally managed and untouched by this package"
 log "Preserved unrelated session-continuity hooks and removed the stale clear auto-handoff hook reference."
 log "Installed agents: $(tr '\n' ' ' < "$AGENTS_MANIFEST" | sed 's/[[:space:]]*$//')"
 log "Removed skills: no-mistakes $LEGACY_SKILL $RETIRED_SKILL"
