@@ -1,7 +1,9 @@
 # Editorial visual identity
 
-This file is intentionally editable independently from the core skill. Keep the
-site/publication's durable art direction here.
+This file is intentionally editable independently from the core skill. Treat it
+as a **cross-repository fallback**, not the canonical home for a product's visual
+identity. Product/publication-specific art direction should live in that
+repository's versioned `.editorial/visual-system.md` contract file.
 
 ## Default direction
 
@@ -42,8 +44,9 @@ specifically requires them.
 - rocket ships as growth;
 - generic laptop-at-desk compositions.
 
-## Publication-specific overrides
+## User-level fallback overrides
 
-Add publication/site-specific palette, illustration style, photography rules,
-diagram language, crop requirements, typography policy, and additional banned
-motifs below this line. Keep machine-specific model details out of this file.
+Add only durable preferences that should apply across repositories **when no
+repository-specific visual system is declared**. Keep product-specific palette,
+components, typography, and publication identity in the repository contract.
+Keep machine-specific model details out of this file.
