@@ -1,68 +1,65 @@
-# Model routing
+# Semantic model routing
 
-Callers select semantic roles. Model names and backend details live in
-configuration so they can change without rewriting skills.
+Callers select semantic purposes. `ai-image` configuration remains the source of
+truth for actual model/backend mapping. Do not hard-code backend executables into
+skill commands.
 
-## Roles
+The currently validated runtime is expected to map roles approximately as
+follows, but always trust `ai-image doctor/config/policy` over this prose if the
+runtime is later updated.
 
-### editorial
+| Role | Current validated route | Use when |
+|---|---|---|
+| `editorial` | Krea 2 Turbo | art-directed heroes, premium editorial imagery, visual character |
+| `conceptual` | Krea 2 Turbo | abstract ideas/metaphor where composition/aesthetic matters |
+| `photorealistic` | FLUX.2 Klein 4B | realistic scenes, business portraits, products, clean photography |
+| `fast-draft` | FLUX.2 Klein 4B | rapid composition exploration, non-final candidates |
+| `precision` | Qwen-Image-2512 8-bit | difficult spatial relationships, structured/knowledge-heavy prompts |
+| `typography` | Qwen-Image-2512 8-bit | visible text is intentionally part of the image |
+| `editing` | FLUX.2 Klein 4B edit | source-preserving semantic edits, one or more references |
+| `upscale` | SeedVR2 3B | post-acceptance resolution enhancement/restoration |
 
-General publication-quality conceptual/editorial illustration. Prefer strong
-composition, controllable abstraction, and visual sophistication.
+## Selection rules
 
-### photorealistic
+1. Honor an explicit caller role when it is compatible with the operation and ready.
+2. Otherwise choose the narrowest semantic role that matches the objective.
+3. Never select by parameter count or model hype.
+4. Never route evidence, exact charts, screenshots, documents, or factual diagrams into generative imagery when authenticity/determinism is required.
+5. Treat `typography` as opt-in. Exact publication typography is usually better rendered deterministically outside the generative image layer.
+6. `editing` is an operation, not a substitute for every failed generation. Use it when preserving an existing composition has value.
+7. `upscale` is not a quality repair for a rejected generation.
 
-Realistic physical scenes or products when generation is appropriate. Do not use
-for evidentiary/historical authenticity that requires a real photograph.
+## Explicit fallback guidance
 
-### conceptual
+Fallback is configured by `ai-image` and invoked only with `--use-fallback`.
+Do not invent a model switch outside that contract.
 
-Abstract systems, relationships, metaphor, and ideas that cannot literally be
-photographed.
+Typical justified cases:
 
-### fast-draft
+- `editorial` -> configured photorealistic fallback when Krea repeatedly produces undesirable aesthetic artifacts but the scene is fundamentally photographic;
+- `conceptual` -> configured precision fallback when Krea repeatedly fails a complex relationship, layout, or knowledge-heavy instruction;
+- `photorealistic` -> configured editorial fallback when FLUX output is technically correct but repeatedly too generic/stock-like for the requested art direction;
+- `precision` -> configured editorial fallback when Qwen repeatedly over-designs the scene or introduces unwanted typography and precision is no longer the dominant requirement.
 
-Rapid composition exploration. Lower generation cost/time is acceptable because
-output is not assumed publication-ready.
+Fallback should normally follow a diagnosed failure, not run as an automatic
+second candidate generator.
 
-### typography
+No silent fallback for typography, editing, or upscaling unless a future runtime
+explicitly adds and documents one.
 
-Only use a model explicitly documented as capable of reliable text rendering.
-Otherwise route text-heavy graphics to deterministic rendering outside the
-generative image system.
+## When to edit instead of regenerate
 
-### editing
+Prefer edit when:
 
-Image-to-image editing, inpainting, or other transformations when a configured
-backend supports them.
+- composition, framing, and subject placement are already strong;
+- the defect is localized or semantically narrow;
+- preservation of identity, pose, lighting, architecture, or background matters;
+- reference images can materially improve the requested change.
 
-### upscale
+Prefer regeneration when:
 
-Resolution enhancement or restoration using a configured upscaler.
-
-## Routing rules
-
-1. Use the requested semantic role when configured and licensed.
-2. Do not guess a model when the role has no configured model.
-3. Do not route evidence, charts, or diagrams to generative imagery merely
-   because a model exists.
-4. Prefer quality over minimum memory usage on high-memory Apple Silicon unless
-   the caller explicitly requests speed/draft mode.
-5. A role's `license_approved` flag must be true for production use.
-6. Machine-specific model paths belong in local overrides, not skill text.
-7. Record the actual configured model/backend in result metadata.
-
-## Updating models
-
-Edit the externally managed `ai-image` model-routing configuration/local
-override rather than `SKILL.md`. This package must not install, replace, or back
-up that configuration. Document
-for each model:
-
-- role strengths;
-- weaknesses;
-- expected speed/memory;
-- supported operations;
-- licensing/source;
-- commercial-use status;
-- model-specific prompt caveats.
+- overall composition is wrong;
+- the wrong visual medium/style was generated;
+- major subject relationships are incorrect;
+- the image contains broad structural corruption;
+- fixing it would require effectively redrawing the whole scene.

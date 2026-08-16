@@ -80,42 +80,46 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/manish/.claude/hooks/claude-turn-notify.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "printf '\\a' >> /dev/tty 2>/dev/null || printf '\\a'"
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3",
-            "args": [
-              "/Users/manish/.claude/session-continuity/hooks/implementation_log_stop_guard.py"
-            ],
-            "timeout": 20,
-            "statusMessage": "Checking implementation-log coverage"
+            "command": "/Users/manish/.claude/hooks/claude-turn-notify.sh",
+            "timeout": 15
           }
         ]
       }
     ],
-    "UserPromptSubmit": [
+    "StopFailure": [
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
-            "args": [
-              "/Users/manish/.claude/session-continuity/hooks/implementation_log_prompt_start.py"
-            ],
-            "timeout": 20,
-            "statusMessage": "Capturing implementation-log baseline"
+            "command": "/Users/manish/.claude/hooks/claude-turn-notify.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/manish/.claude/hooks/claude-turn-notify.sh",
+            "timeout": 15
           }
         ]
       }
@@ -125,13 +129,22 @@
     "type": "command",
     "command": "sh ~/.claude/statusline-command.sh"
   },
+  "outputStyle": "Engineering Narrator",
+  "viewMode": "default",
+  "alwaysThinkingEnabled": true,
   "effortLevel": "xhigh",
+  "autoCompactWindow": 800000,
+  "remote": {
+    "defaultEnvironmentId": "env_017RtrrRy8mK6G7Woa3du5AT"
+  },
   "voice": {
     "enabled": false,
     "mode": "hold"
   },
+  "showThinkingSummaries": false,
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
   "theme": "dark",
+  "verbose": false,
   "voiceEnabled": false
 }

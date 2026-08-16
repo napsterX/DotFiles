@@ -1,0 +1,3 @@
+firstmate
+# tmux session names listed here never produce a notification.
+# One name per line. "firstmate" excludes firstmate's own worker windows.

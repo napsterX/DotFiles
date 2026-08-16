@@ -1,61 +1,91 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "roles": {
     "editorial": {
       "provider": "local",
-      "backend": "mflux",
-      "model": "",
-      "license_approved": false,
-      "license_note": "Configure during MLX/MFLUX model setup.",
-      "parameters": {}
+      "backend": "mflux-krea2",
+      "model": "krea/Krea-2-Turbo",
+      "license_approved": true,
+      "license_note": "Krea 2 Community License approved for current use. Revisit the commercial license when the organization reaches the applicable revenue threshold.",
+      "policy": "image-only-editorial",
+      "fallback_role": "photorealistic",
+      "parameters": {"steps": 8, "quantize": 8}
     },
     "photorealistic": {
       "provider": "local",
-      "backend": "mflux",
-      "model": "",
-      "license_approved": false,
-      "license_note": "Configure during MLX/MFLUX model setup.",
-      "parameters": {}
+      "backend": "mflux-flux2",
+      "model": "flux2-klein-4b",
+      "license_approved": true,
+      "license_note": "FLUX.2 Klein 4B is Apache-2.0 and approved for local commercial use.",
+      "policy": "image-only-editorial",
+      "fallback_role": "editorial",
+      "parameters": {"steps": 4, "quantize": 8}
     },
     "conceptual": {
       "provider": "local",
-      "backend": "mflux",
-      "model": "",
-      "license_approved": false,
-      "license_note": "Configure during MLX/MFLUX model setup.",
-      "parameters": {}
+      "backend": "mflux-krea2",
+      "model": "krea/Krea-2-Turbo",
+      "license_approved": true,
+      "license_note": "Krea 2 Community License approved for current use. This route was selected after local tests showed Qwen could drift into unwanted infographic/typography layouts for conceptual editorial prompts.",
+      "policy": "image-only-editorial",
+      "fallback_role": "precision",
+      "parameters": {"steps": 8, "quantize": 8}
+    },
+    "precision": {
+      "provider": "local",
+      "backend": "mflux-qwen",
+      "model": "mlx-community/Qwen-Image-2512-8bit",
+      "license_approved": true,
+      "license_note": "Qwen-Image-2512 is Apache-2.0; this pre-quantized MLX checkpoint is the validated precision route.",
+      "policy": "image-only-precision",
+      "fallback_role": "editorial",
+      "parameters": {
+        "steps": 30,
+        "negative_prompt": "text, typography, letters, words, numbers, logo, watermark, signage, magazine cover, poster, caption, headline, UI, interface, infographic, diagram labels, garbled text, distorted anatomy, cheap stock photography"
+      }
     },
     "fast-draft": {
       "provider": "local",
-      "backend": "mflux",
-      "model": "",
-      "license_approved": false,
-      "license_note": "Configure during MLX/MFLUX model setup.",
-      "parameters": {}
+      "backend": "mflux-flux2",
+      "model": "flux2-klein-4b",
+      "license_approved": true,
+      "license_note": "FLUX.2 Klein 4B is Apache-2.0 and approved for local commercial use.",
+      "policy": "image-only-editorial",
+      "fallback_role": "editorial",
+      "parameters": {"steps": 4, "quantize": 8}
     },
     "typography": {
       "provider": "local",
-      "backend": "mflux",
-      "model": "",
-      "license_approved": false,
-      "license_note": "Leave unapproved unless a reliable text model is configured.",
-      "parameters": {}
+      "backend": "mflux-qwen",
+      "model": "mlx-community/Qwen-Image-2512-8bit",
+      "license_approved": true,
+      "license_note": "Qwen-Image-2512 is Apache-2.0. Use this role only when visible text is explicitly required.",
+      "policy": "typography",
+      "fallback_role": "",
+      "parameters": {
+        "steps": 30,
+        "negative_prompt": "distorted anatomy, garbled composition, duplicate elements, random clutter, watermark, logo unless explicitly requested"
+      }
     },
     "editing": {
       "provider": "local",
-      "backend": "mflux",
-      "model": "",
-      "license_approved": false,
-      "license_note": "Configure only when an editing-capable backend/model is installed.",
-      "parameters": {}
+      "backend": "mflux-flux2-edit",
+      "model": "flux2-klein-4b",
+      "license_approved": true,
+      "license_note": "FLUX.2 Klein 4B is Apache-2.0; MFLUX supports image-conditioned editing with one or more reference images.",
+      "policy": "editing",
+      "fallback_role": "",
+      "parameters": {"steps": 4, "quantize": 8}
     },
     "upscale": {
       "provider": "local",
-      "backend": "mflux",
-      "model": "",
-      "license_approved": false,
-      "license_note": "Configure an approved upscaler during runtime setup.",
-      "parameters": {}
+      "backend": "mflux-seedvr2",
+      "model": "seedvr2-3b",
+      "license_approved": true,
+      "license_note": "SeedVR2 3B is the validated local finishing/upscale route.",
+      "policy": "upscale",
+      "fallback_role": "",
+      "parameters": {"resolution": "2x", "softness": 0.5}
     }
   }
 }

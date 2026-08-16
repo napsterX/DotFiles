@@ -11,6 +11,12 @@ BACKUP_DIRECTORIES=(
   agents
   commands
   rules
+  # hooks/ holds the scripts that settings.json points at, so backing up
+  # settings.json without it captures a configuration whose commands do not
+  # exist anywhere else. Restoring that state gives you hooks wired to missing
+  # files, which fail silently. Added 2026-08-14 after the turn-completion
+  # notifier turned out to be untracked on this machine only.
+  hooks
 )
 
 BACKUP_FILES=(
@@ -62,10 +68,15 @@ for directory in "${BACKUP_DIRECTORIES[@]}"; do
   if [[ -d "$source_directory" ]]; then
     mkdir -p "$destination_directory"
 
+    # Runtime output is excluded: logs and state stamps change on every turn,
+    # so backing them up would produce a commit's worth of churn each run and
+    # bury the configuration changes that actually matter.
     rsync -a --delete \
       --exclude='.DS_Store' \
       --exclude='*.tmp' \
       --exclude='*.swp' \
+      --exclude='*.log' \
+      --exclude='.turn-notify-state/' \
       "$source_directory/" \
       "$destination_directory/"
   else

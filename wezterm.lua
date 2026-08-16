@@ -28,7 +28,6 @@ config.window_padding = {
 -- unplugging an external monitor). WezTerm adjusts the window to fit the new
 -- screen dimensions rather than staying at the old fixed size.
 config.adjust_window_size_when_changing_font_size = true
-config.window_close_confirmation = "NeverPrompt"
 
 -- Set initial window dimensions to reasonable defaults that work on most
 -- screens (will be overridden if you've explicitly sized the window before).
@@ -45,6 +44,43 @@ config.hide_tab_bar_if_only_one_tab = true
 config.use_fancy_tab_bar = true
 config.tab_bar_at_bottom = false
 config.tab_max_width = 32
+
+--------------------------------------------------------------------------------
+-- Close confirmation (always ask, in every scenario)
+--------------------------------------------------------------------------------
+-- Goal: closing a tab, a pane, or a window ALWAYS shows a confirmation prompt,
+-- whether or not a command is currently running. Closing a tab throws away its
+-- scrollback, so an idle shell prompt is not "nothing to lose": it still holds
+-- the output of everything that already ran there.
+--
+-- By default WezTerm treats a short list of processes (bash, sh, zsh, fish,
+-- tmux, nu, and the Windows shells) as "stateless" and closes those without
+-- asking. That is why a tab running a command asked for confirmation but a tab
+-- sitting at the shell prompt vanished on a stray Cmd+W or a misclick on the
+-- tab's X.
+--
+-- Three settings are needed, because each covers a different path:
+--
+--   1. skip_close_confirmation_for_processes_named = {}
+--      Empties the "safe to close" list so no process is exempt.
+--
+--   2. the mux-is-process-stateful handler below
+--      The authoritative override. It is consulted before the name list, so
+--      returning true forces a prompt regardless of which process is running.
+--      This is what makes the behavior unconditional rather than dependent on
+--      matching process names.
+--
+--   3. window_close_confirmation = "AlwaysPrompt"
+--      Closing the window takes every tab in it with it, so this is the most
+--      destructive path of all. It was previously "NeverPrompt".
+config.skip_close_confirmation_for_processes_named = {}
+config.window_close_confirmation = "AlwaysPrompt"
+
+-- Report every process as stateful so the close prompt is never skipped.
+-- Returning nil here would fall back to the process-name list above.
+wezterm.on("mux-is-process-stateful", function(_)
+	return true
+end)
 
 --------------------------------------------------------------------------------
 -- Behavior
@@ -98,6 +134,14 @@ config.keys = {
 
 	-- Panes: close current pane
 	{ key = "w", mods = "CMD|SHIFT", action = act.CloseCurrentPane({ confirm = true }) },
+
+	-- Shell: word-wise cursor movement with Opt+Arrow.
+	-- Sent as the Alt-b / Alt-f readline word motions, which shells, editors and
+	-- terminal UIs already understand, rather than as an arrow escape sequence
+	-- most of them ignore. ALT is WezTerm's name for the macOS Option key.
+	-- Distinct from the Cmd+Alt+Arrow pane navigation above, which keeps CMD.
+	{ key = "LeftArrow", mods = "ALT", action = act.SendKey({ key = "b", mods = "ALT" }) },
+	{ key = "RightArrow", mods = "ALT", action = act.SendKey({ key = "f", mods = "ALT" }) },
 
 	-- Font size
 	{ key = "=", mods = "CMD", action = act.IncreaseFontSize },

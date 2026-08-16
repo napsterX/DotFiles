@@ -1,5 +1,6 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "minimum_mflux_version": "0.18.1",
   "default_quality": "high",
   "default_timeout_seconds": 900,
   "technical_retry_attempts": 1,
@@ -11,12 +12,112 @@
     "1:1": {"draft": [768, 768], "standard": [1024, 1024], "high": [1536, 1536]},
     "9:16": {"draft": [576, 1024], "standard": [720, 1280], "high": [864, 1536]}
   },
+  "policies": {
+    "image-only-editorial": {
+      "prompt_prefix": "IMAGE ONLY. Create only the underlying photograph or illustration. Do not create a magazine cover, poster, advertisement, slide, infographic, interface mockup, caption, headline, logo, watermark, typography, letters, words, numbers, signage, or graphic-design overlay unless the brief explicitly requires visible text. Publication typography will be added separately.",
+      "acceptance_criteria": [
+        "No unintended text, letters, numbers, logos, watermarks, signage, or publication-layout overlays.",
+        "No obvious anatomy or object-geometry defects at normal viewing size.",
+        "Composition serves the brief and leaves intentional usable negative space when the brief calls for it.",
+        "Visual style matches the requested editorial/photographic/illustrative intent rather than drifting into a generic slide or infographic.",
+        "No obvious low-quality, broken, duplicated, or incoherent elements."
+      ],
+      "retry_guidance": [
+        "If rejected for accidental typography or layout, strengthen image-only language and regenerate with a new seed.",
+        "If two quality attempts fail for aesthetics or composition, use the configured fallback role rather than continuing indefinitely."
+      ]
+    },
+    "image-only-precision": {
+      "prompt_prefix": "IMAGE ONLY. Render the requested scene and spatial relationships precisely. Do not add any text, typography, letters, numbers, logos, watermarks, signs, labels, captions, UI chrome, infographic panels, magazine-cover treatment, or layout overlays unless visible text is explicitly required by the brief.",
+      "acceptance_criteria": [
+        "Required objects, counts, spatial relationships, and scene constraints are present and coherent.",
+        "No unintended text, typography, UI panels, logos, watermarks, labels, or infographic layout.",
+        "No obvious anatomy, perspective, or object-geometry defects.",
+        "The image remains visually usable as publication artwork rather than becoming a slide or diagram unless that was explicitly requested."
+      ],
+      "retry_guidance": [
+        "For semantic errors, make relationships and object counts more explicit and regenerate with a new seed.",
+        "For repeated accidental typography, use the configured fallback role after the bounded quality loop."
+      ]
+    },
+    "typography": {
+      "acceptance_criteria": [
+        "Every requested visible word is spelled correctly and readable at intended display size.",
+        "No extra invented words, pseudo-text, or unrelated labels are present.",
+        "Typography hierarchy and placement match the brief.",
+        "Image composition remains coherent around the requested text."
+      ],
+      "retry_guidance": [
+        "Reject any output with misspelled or pseudo-text; regenerate rather than repairing downstream unless the text will be added separately."
+      ]
+    },
+    "editing": {
+      "prompt_prefix": "Perform only the requested edit while preserving unrelated composition, identity, lighting, background, and geometry as closely as possible unless the brief explicitly asks to change them.",
+      "acceptance_criteria": [
+        "The requested change is present.",
+        "Unrequested regions and identity-defining features remain materially consistent with the source image.",
+        "Reference-image attributes are transferred only where requested.",
+        "No new unintended text, logos, watermarks, anatomy defects, or composition drift appear."
+      ],
+      "retry_guidance": [
+        "If the edit changes unrelated regions, narrow the instruction and retry with the same source/reference set using a new seed.",
+        "After repeated drift, stop and surface the failure instead of silently accepting a materially changed image."
+      ]
+    },
+    "upscale": {
+      "acceptance_criteria": [
+        "Composition and identity remain consistent with the accepted source image.",
+        "No invented text, facial changes, geometry drift, halos, or excessive artificial texture are introduced.",
+        "The higher-resolution result is materially useful at the target display/crop size."
+      ],
+      "retry_guidance": [
+        "If restoration invents detail, reduce softness or keep the accepted source instead of forcing an upscale."
+      ]
+    }
+  },
   "backends": {
-    "mflux": {
-      "enabled": false,
-      "executable": "",
-      "generate_args": [],
+    "mflux-krea2": {
+      "enabled": true,
+      "executable": "mflux-generate-krea2",
+      "generate_args": ["--prompt", "{prompt}", "--width", "{width}", "--height", "{height}", "--steps", "{steps}", "--seed", "{seed}", "-q", "{quantize}", "--output", "{output}"],
+      "edit_args": [],
       "upscale_args": [],
+      "timeout_seconds": 900,
+      "environment": {}
+    },
+    "mflux-flux2": {
+      "enabled": true,
+      "executable": "mflux-generate-flux2",
+      "generate_args": ["--model", "{model}", "--prompt", "{prompt}", "--width", "{width}", "--height", "{height}", "--steps", "{steps}", "--seed", "{seed}", "-q", "{quantize}", "--output", "{output}"],
+      "edit_args": [],
+      "upscale_args": [],
+      "timeout_seconds": 900,
+      "environment": {}
+    },
+    "mflux-flux2-edit": {
+      "enabled": true,
+      "executable": "mflux-generate-flux2-edit",
+      "generate_args": [],
+      "edit_args": ["--model", "{model}", "--image-paths", "{image_paths}", "--prompt", "{prompt}", "--steps", "{steps}", "--seed", "{seed}", "-q", "{quantize}", "--output", "{output}"],
+      "upscale_args": [],
+      "timeout_seconds": 900,
+      "environment": {}
+    },
+    "mflux-qwen": {
+      "enabled": true,
+      "executable": "mflux-generate-qwen",
+      "generate_args": ["--model", "{model}", "--prompt", "{prompt}", "--negative-prompt", "{negative_prompt}", "--width", "{width}", "--height", "{height}", "--steps", "{steps}", "--seed", "{seed}", "--output", "{output}"],
+      "edit_args": [],
+      "upscale_args": [],
+      "timeout_seconds": 1200,
+      "environment": {}
+    },
+    "mflux-seedvr2": {
+      "enabled": true,
+      "executable": "mflux-upscale-seedvr2",
+      "generate_args": [],
+      "edit_args": [],
+      "upscale_args": ["--model", "{model}", "--image-path", "{input}", "--resolution", "{resolution}", "--softness", "{softness}", "--output", "{output}"],
       "timeout_seconds": 900,
       "environment": {}
     }

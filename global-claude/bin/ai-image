@@ -1,28 +1,42 @@
 #!/usr/bin/env python3
-"""Stable local-first image generation wrapper.
+"""Stable local-first image generation wrapper for Apple Silicon/MFLUX.
 
-The package defines the contract. Runtime-specific MFLUX/model configuration is
-supplied later through JSON config; command templates are argv arrays and are
-never evaluated by a shell.
+The wrapper owns routing, policy injection, deterministic attempt naming,
+technical retries, evidence metadata, edit/upscale orchestration, byte-exact
+promotion of an accepted candidate to its delivery path, and a stable
+JSON/exit-code contract. Visual quality judgment remains the caller's job.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import signal
 import struct
 import subprocess
 import sys
-import tempfile
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-VERSION = "2026.08.13-ai-image-1"
-ROLES = ("editorial", "photorealistic", "conceptual", "fast-draft", "typography", "editing", "upscale")
+VERSION = "2026.08.14-ai-image-v2.1"
+SCHEMA_VERSIONS = {1, 2}
+ROLES = (
+    "editorial",
+    "photorealistic",
+    "conceptual",
+    "precision",
+    "fast-draft",
+    "typography",
+    "editing",
+    "upscale",
+)
+GENERATION_ROLES = tuple(r for r in ROLES if r not in {"editing", "upscale"})
 QUALITIES = ("draft", "standard", "high")
 EXIT_CONFIG = 3
 EXIT_RUNTIME = 4
@@ -36,6 +50,22 @@ class AiImageError(Exception):
         self.message = message
         self.exit_code = exit_code
         self.details = details or {}
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -74,8 +104,9 @@ def load_config() -> tuple[dict[str, Any], Path]:
     cfg = load_json(root / "defaults.json", True)
     cfg = deep_merge(cfg, load_json(root / "models.json", True))
     cfg = deep_merge(cfg, load_json(root / "local.json", False))
-    if cfg.get("schema_version") != 1:
-        raise AiImageError("CONFIG_SCHEMA_UNSUPPORTED", "ai-image requires schema_version 1", EXIT_CONFIG)
+    schema = cfg.get("schema_version")
+    if schema not in SCHEMA_VERSIONS:
+        raise AiImageError("CONFIG_SCHEMA_UNSUPPORTED", f"Unsupported ai-image schema_version: {schema}", EXIT_CONFIG)
     return cfg, root
 
 
@@ -85,6 +116,8 @@ def safe_emit(payload: dict[str, Any], as_json: bool) -> None:
         return
     if payload.get("status") == "error":
         print(f"ERROR [{payload.get('code')}]: {payload.get('message')}")
+        if payload.get("details"):
+            print(f"details: {json.dumps(payload['details'], sort_keys=True)}")
         return
     for key, value in payload.items():
         if isinstance(value, (dict, list)):
@@ -98,6 +131,17 @@ def role_config(cfg: dict[str, Any], role: str) -> dict[str, Any]:
     if not isinstance(roles, dict) or not isinstance(roles.get(role), dict):
         raise AiImageError("ROLE_NOT_CONFIGURED", f"No configuration exists for role: {role}", EXIT_CONFIG)
     return roles[role]
+
+
+def policy_config(cfg: dict[str, Any], role: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    policy_name = str(role.get("policy") or "")
+    if not policy_name:
+        return "", {}
+    policies = cfg.get("policies")
+    policy = policies.get(policy_name) if isinstance(policies, dict) else None
+    if not isinstance(policy, dict):
+        raise AiImageError("POLICY_NOT_CONFIGURED", f"Policy is not configured: {policy_name}", EXIT_CONFIG)
+    return policy_name, policy
 
 
 def backend_config(cfg: dict[str, Any], role: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -130,16 +174,29 @@ def dimensions(cfg: dict[str, Any], aspect: str, quality: str) -> tuple[int, int
 
 
 def format_argv(template: list[Any], mapping: dict[str, Any]) -> list[str]:
+    """Render argv template without a shell; exact list placeholders expand safely."""
     if not template:
         raise AiImageError("BACKEND_COMMAND_NOT_CONFIGURED", "Backend command template is not configured", EXIT_CONFIG)
     argv: list[str] = []
     for token in template:
         if not isinstance(token, str):
             raise AiImageError("BACKEND_COMMAND_INVALID", "Backend argument templates must contain strings only", EXIT_CONFIG)
+        exact = re.fullmatch(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", token)
+        if exact:
+            key = exact.group(1)
+            if key not in mapping:
+                raise AiImageError("BACKEND_TEMPLATE_PLACEHOLDER_UNKNOWN", f"Unknown backend placeholder: {key}", EXIT_CONFIG)
+            value = mapping[key]
+            if isinstance(value, list):
+                if not all(isinstance(item, (str, int, float, bool)) for item in value):
+                    raise AiImageError("BACKEND_TEMPLATE_LIST_INVALID", f"List placeholder {key} contains unsupported values", EXIT_CONFIG)
+                argv.extend(str(item) for item in value)
+                continue
         try:
-            argv.append(token.format_map(mapping))
+            rendered = token.format_map(mapping)
         except KeyError as exc:
             raise AiImageError("BACKEND_TEMPLATE_PLACEHOLDER_UNKNOWN", f"Unknown backend placeholder: {exc.args[0]}", EXIT_CONFIG) from exc
+        argv.append(str(rendered))
     return argv
 
 
@@ -152,22 +209,22 @@ def sanitize_text(text: str | None, sensitive_values: list[str] | None = None) -
     value = text or ""
     for sensitive in sensitive_values or []:
         if sensitive:
-            value = value.replace(sensitive, "<redacted-brief-content>")
+            value = value.replace(sensitive, "<redacted-content>")
     return bounded_output(value)
 
 
 def redacted_argv(argv: list[str], sensitive_values: list[str] | None = None) -> list[str]:
-    redacted: list[str] = []
-    for token in argv:
-        safe = token
-        for sensitive in sensitive_values or []:
-            if sensitive and sensitive in safe:
-                safe = safe.replace(sensitive, "<redacted-brief-content>")
-        redacted.append(safe)
-    return redacted
+    return [sanitize_text(token, sensitive_values) for token in argv]
 
 
-def run_process(argv: list[str], cwd: Path, env_overrides: dict[str, Any], timeout: int, sensitive_values: list[str] | None = None) -> subprocess.CompletedProcess[str]:
+def run_process(
+    argv: list[str],
+    cwd: Path,
+    env_overrides: dict[str, Any],
+    timeout: int,
+    sensitive_values: list[str] | None = None,
+    timeout_code: str = "OPERATION_TIMEOUT",
+) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     for key, value in env_overrides.items():
         if not isinstance(key, str) or not isinstance(value, (str, int, float, bool)):
@@ -198,7 +255,7 @@ def run_process(argv: list[str], cwd: Path, env_overrides: dict[str, Any], timeo
                 pass
             stdout, stderr = proc.communicate()
         raise AiImageError(
-            "GENERATION_TIMEOUT",
+            timeout_code,
             f"Image backend exceeded timeout of {timeout} seconds",
             EXIT_PROCESS,
             {"stdout": sanitize_text(stdout, sensitive_values), "stderr": sanitize_text(stderr, sensitive_values)},
@@ -241,7 +298,28 @@ def image_dimensions(path: Path) -> tuple[int | None, int | None]:
     return None, None
 
 
-def validate_role_for_generation(cfg: dict[str, Any], role_name: str, operation: str) -> tuple[dict[str, Any], str, dict[str, Any], str]:
+def detect_mflux_version() -> str | None:
+    uv = shutil.which("uv")
+    if not uv:
+        return None
+    try:
+        result = subprocess.run([uv, "tool", "list"], capture_output=True, text=True, timeout=5, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    match = re.search(r"(?m)^mflux\s+v([^\s]+)", result.stdout or "")
+    return match.group(1) if match else None
+
+
+def version_tuple(value: str | None) -> tuple[int, ...] | None:
+    if not value:
+        return None
+    m = re.match(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?", value)
+    if not m:
+        return None
+    return tuple(int(x or 0) for x in m.groups())
+
+
+def validate_role(cfg: dict[str, Any], role_name: str, operation: str) -> tuple[dict[str, Any], str, dict[str, Any], str]:
     role = role_config(cfg, role_name)
     if role.get("provider", "local") != "local":
         raise AiImageError("NONLOCAL_ROLE", f"Role {role_name} is not configured as local", EXIT_CONFIG)
@@ -256,11 +334,21 @@ def validate_role_for_generation(cfg: dict[str, Any], role_name: str, operation:
     executable = resolve_executable(str(backend.get("executable") or ""))
     if not executable:
         raise AiImageError("BACKEND_EXECUTABLE_MISSING", f"Backend executable is unavailable for {backend_name}", EXIT_RUNTIME)
-    template_key = "upscale_args" if operation == "upscale" else "generate_args"
+    template_key = {"generate": "generate_args", "edit": "edit_args", "upscale": "upscale_args"}[operation]
     template = backend.get(template_key)
     if not isinstance(template, list) or not template:
         raise AiImageError("BACKEND_COMMAND_NOT_CONFIGURED", f"Backend {template_key} is not configured", EXIT_CONFIG)
     return role, backend_name, backend, executable
+
+
+def resolve_effective_role(cfg: dict[str, Any], requested_role: str, use_fallback: bool) -> tuple[str, dict[str, Any], str | None]:
+    requested = role_config(cfg, requested_role)
+    if not use_fallback:
+        return requested_role, requested, None
+    fallback = str(requested.get("fallback_role") or "")
+    if not fallback:
+        raise AiImageError("FALLBACK_NOT_CONFIGURED", f"Role {requested_role} has no configured fallback role", EXIT_CONFIG)
+    return fallback, role_config(cfg, fallback), requested_role
 
 
 def effective_safe_config(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
@@ -272,6 +360,8 @@ def effective_safe_config(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
             "backend": role.get("backend"),
             "model": role.get("model"),
             "license_approved": bool(role.get("license_approved", False)),
+            "policy": role.get("policy"),
+            "fallback_role": role.get("fallback_role"),
         }
     backends_out: dict[str, Any] = {}
     for name, backend in (cfg.get("backends") or {}).items():
@@ -282,9 +372,18 @@ def effective_safe_config(cfg: dict[str, Any], root: Path) -> dict[str, Any]:
                 "executable": exe,
                 "executable_found": bool(resolve_executable(exe)) if exe else False,
                 "generate_command_configured": bool(backend.get("generate_args")),
+                "edit_command_configured": bool(backend.get("edit_args")),
                 "upscale_command_configured": bool(backend.get("upscale_args")),
             }
-    return {"config_dir": str(root), "schema_version": cfg.get("schema_version"), "roles": roles_out, "backends": backends_out, "cloud_enabled": bool((cfg.get("cloud") or {}).get("enabled", False))}
+    return {
+        "config_dir": str(root),
+        "schema_version": cfg.get("schema_version"),
+        "roles": roles_out,
+        "backends": backends_out,
+        "cloud_enabled": bool((cfg.get("cloud") or {}).get("enabled", False)),
+        "mflux_version": detect_mflux_version(),
+        "minimum_mflux_version": cfg.get("minimum_mflux_version"),
+    }
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -294,11 +393,11 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     warnings: list[str] = []
     ready_roles: list[str] = []
     for role_name in ROLES:
-        role = report["roles"][role_name]
-        if not role["model"]:
+        role = report["roles"].get(role_name, {})
+        if not role.get("model"):
             warnings.append(f"{role_name}: model not configured")
             continue
-        if not role["license_approved"]:
+        if not role.get("license_approved"):
             warnings.append(f"{role_name}: model configured but license not approved")
             continue
         backend_name = role.get("backend")
@@ -309,20 +408,20 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         if not backend.get("executable_found"):
             blockers.append(f"{role_name}: backend {backend_name} executable not found")
             continue
-        command_key = "upscale_command_configured" if role_name == "upscale" else "generate_command_configured"
+        command_key = "upscale_command_configured" if role_name == "upscale" else "edit_command_configured" if role_name == "editing" else "generate_command_configured"
         if not backend.get(command_key):
             blockers.append(f"{role_name}: backend command template is not configured")
             continue
         ready_roles.append(role_name)
-    generation_roles = [r for r in ready_roles if r != "upscale"]
-    if not generation_roles:
+    if not any(r in ready_roles for r in GENERATION_ROLES):
         blockers.append("no approved local generation role is ready")
-    report.update({
-        "status": "ready" if not blockers else "not_ready",
-        "ready_roles": ready_roles,
-        "blockers": blockers,
-        "warnings": warnings,
-    })
+    detected = version_tuple(report.get("mflux_version"))
+    minimum = version_tuple(str(report.get("minimum_mflux_version") or ""))
+    if detected and minimum and detected < minimum:
+        warnings.append(f"MFLUX {report['mflux_version']} is older than validated minimum {report['minimum_mflux_version']}")
+    if report.get("mflux_version") is None:
+        warnings.append("could not determine MFLUX version via `uv tool list`")
+    report.update({"status": "ready" if not blockers else "not_ready", "ready_roles": ready_roles, "blockers": blockers, "warnings": warnings})
     safe_emit(report, args.json)
     return 0 if not blockers else EXIT_RUNTIME
 
@@ -331,6 +430,23 @@ def cmd_config(args: argparse.Namespace) -> int:
     cfg, root = load_config()
     payload = effective_safe_config(cfg, root)
     payload["status"] = "ok"
+    safe_emit(payload, args.json)
+    return 0
+
+
+def cmd_policy(args: argparse.Namespace) -> int:
+    cfg, _ = load_config()
+    effective_name, role, fallback_from = resolve_effective_role(cfg, args.purpose, args.use_fallback)
+    policy_name, policy = policy_config(cfg, role)
+    payload = {
+        "status": "ok",
+        "requested_role": args.purpose,
+        "effective_role": effective_name,
+        "fallback_used": bool(fallback_from),
+        "policy": policy_name,
+        "acceptance_criteria": policy.get("acceptance_criteria") or [],
+        "retry_guidance": policy.get("retry_guidance") or [],
+    }
     safe_emit(payload, args.json)
     return 0
 
@@ -347,6 +463,28 @@ def prompt_from_brief(path: Path) -> str:
     return text.strip()
 
 
+def compose_prompt(base_prompt: str, role: dict[str, Any], policy: dict[str, Any]) -> str:
+    params = role.get("parameters") if isinstance(role.get("parameters"), dict) else {}
+    parts = []
+    for item in (policy.get("prompt_prefix"), params.get("prompt_prefix"), base_prompt, params.get("prompt_suffix"), policy.get("prompt_suffix")):
+        if isinstance(item, str) and item.strip():
+            parts.append(item.strip())
+    return "\n\n".join(parts)
+
+
+def attempt_output_path(requested: Path, quality_attempt: int, exact_output: bool) -> Path:
+    if exact_output or quality_attempt <= 1:
+        return requested
+    suffix = requested.suffix
+    stem = requested.name[:-len(suffix)] if suffix else requested.name
+    return requested.with_name(f"{stem}.attempt-{quality_attempt:02d}{suffix}")
+
+
+def ensure_output_available(output: Path, overwrite: bool, dry_run: bool) -> None:
+    if output.exists() and not overwrite and not dry_run:
+        raise AiImageError("OUTPUT_EXISTS", f"Output already exists; use --overwrite or a new path: {output}", EXIT_CONFIG)
+
+
 def write_metadata(output: Path, payload: dict[str, Any], enabled: bool) -> str | None:
     if not enabled:
         return None
@@ -357,121 +495,419 @@ def write_metadata(output: Path, payload: dict[str, Any], enabled: bool) -> str 
     return str(sidecar)
 
 
+def safe_environment_snapshot() -> dict[str, str]:
+    names = ("HF_HOME", "HF_HUB_CACHE", "MFLUX_CACHE_DIR")
+    return {name: os.environ[name] for name in names if os.environ.get(name)}
+
+
+def execute_with_retries(
+    *,
+    argv: list[str],
+    cwd: Path,
+    env_overrides: dict[str, Any],
+    timeout: int,
+    sensitive_values: list[str] | None,
+    retries: int,
+    output: Path,
+    op_name: str,
+) -> tuple[subprocess.CompletedProcess[str], int, float]:
+    last_error: AiImageError | None = None
+    total_attempts = max(1, retries + 1)
+    start = time.monotonic()
+    for attempt in range(1, total_attempts + 1):
+        if output.exists():
+            try:
+                output.unlink()
+            except OSError:
+                pass
+        try:
+            result = run_process(argv, cwd, env_overrides, timeout, sensitive_values, f"{op_name.upper()}_TIMEOUT")
+            if result.returncode != 0:
+                raise AiImageError(f"{op_name.upper()}_FAILED", f"Backend exited with status {result.returncode}", EXIT_PROCESS, {"stdout": result.stdout, "stderr": result.stderr, "technical_attempt": attempt})
+            if not output.is_file() or output.stat().st_size <= 0:
+                raise AiImageError("OUTPUT_MISSING", f"Backend completed but output was not created: {output}", EXIT_PROCESS, {"technical_attempt": attempt, "stdout": result.stdout, "stderr": result.stderr})
+            return result, attempt, round(time.monotonic() - start, 3)
+        except AiImageError as exc:
+            last_error = exc
+            if attempt == total_attempts:
+                break
+            time.sleep(min(2 * attempt, 5))
+    assert last_error is not None
+    raise last_error
+
+
+def base_metadata(cfg: dict[str, Any], *, operation: str, requested_role: str, effective_role: str, role: dict[str, Any], backend_name: str, executable: str, policy_name: str, policy: dict[str, Any], quality_attempt: int) -> dict[str, Any]:
+    params = role.get("parameters") if isinstance(role.get("parameters"), dict) else {}
+    sanitized_params = {k: v for k, v in params.items() if k not in {"prompt_prefix", "prompt_suffix"}}
+    return {
+        "metadata_schema": 2,
+        "created_at_utc": utc_now(),
+        "ai_image_version": VERSION,
+        "mflux_version": detect_mflux_version(),
+        "operation": operation,
+        "requested_role": requested_role,
+        "effective_role": effective_role,
+        "backend": backend_name,
+        "backend_executable": executable,
+        "model": str(role.get("model") or ""),
+        "license_note": role.get("license_note"),
+        "policy": policy_name,
+        "acceptance_criteria": policy.get("acceptance_criteria") or [],
+        "retry_guidance": policy.get("retry_guidance") or [],
+        "parameters": sanitized_params,
+        "quality_attempt": quality_attempt,
+        "environment": safe_environment_snapshot(),
+    }
+
+
 def cmd_generate(args: argparse.Namespace) -> int:
     cfg, root = load_config()
-    role, backend_name, backend, executable = validate_role_for_generation(cfg, args.purpose, "generate")
+    effective_name, effective_role, fallback_from = resolve_effective_role(cfg, args.purpose, args.use_fallback)
+    role, backend_name, backend, executable = validate_role(cfg, effective_name, "generate")
+    policy_name, policy = policy_config(cfg, role)
     brief_path = Path(args.brief).expanduser().resolve()
-    output = Path(args.output).expanduser().resolve()
-    prompt = prompt_from_brief(brief_path)
+    requested_output = Path(args.output).expanduser().resolve()
+    output = attempt_output_path(requested_output, args.quality_attempt, args.exact_output)
+    ensure_output_available(output, args.overwrite, args.dry_run)
+    raw_prompt = prompt_from_brief(brief_path)
+    prompt = compose_prompt(raw_prompt, role, policy)
     width, height = dimensions(cfg, args.aspect, args.quality)
     seed = int(args.seed) if args.seed is not None else secrets.randbelow(2_147_483_647)
     params = role.get("parameters") if isinstance(role.get("parameters"), dict) else {}
-    mapping: dict[str, Any] = {
-        "model": str(role.get("model")), "prompt": prompt, "brief": str(brief_path),
-        "output": str(output), "width": width, "height": height, "seed": seed,
-        "quality": args.quality,
-    }
+    mapping: dict[str, Any] = {"model": str(role.get("model")), "prompt": prompt, "brief": str(brief_path), "output": str(output), "width": width, "height": height, "seed": seed, "quality": args.quality}
     mapping.update({str(k): v for k, v in params.items()})
     argv = [executable] + format_argv(backend.get("generate_args"), mapping)
-    payload: dict[str, Any] = {
-        "status": "planned" if args.dry_run else "success", "operation": "generate",
-        "output": str(output), "backend": backend_name, "role": args.purpose,
-        "model": str(role.get("model")), "width": width, "height": height, "seed": seed,
-        "attempt": 1, "upscaled": False, "warnings": [], "config_dir": str(root),
-    }
+    payload = base_metadata(cfg, operation="generate", requested_role=args.purpose, effective_role=effective_name, role=role, backend_name=backend_name, executable=executable, policy_name=policy_name, policy=policy, quality_attempt=args.quality_attempt)
+    payload.update({
+        "status": "planned" if args.dry_run else "success",
+        "config_dir": str(root),
+        "requested_output": str(requested_output),
+        "output": str(output),
+        "fallback_used": bool(fallback_from),
+        "fallback_from": fallback_from,
+        "width": width,
+        "height": height,
+        "seed": seed,
+        "brief_path": str(brief_path),
+        "brief_sha256": sha256_file(brief_path),
+        "prompt_sha256": sha256_text(prompt),
+        "technical_attempt": 0,
+        "upscaled": False,
+        "warnings": [],
+        "command": redacted_argv(argv, [prompt, raw_prompt]),
+    })
     if args.dry_run:
-        payload["command"] = redacted_argv(argv, [prompt])
         safe_emit(payload, args.json)
         return 0
     output.parent.mkdir(parents=True, exist_ok=True)
     timeout = int(backend.get("timeout_seconds") or cfg.get("default_timeout_seconds") or 900)
-    result = run_process(argv, output.parent, backend.get("environment") or {}, timeout, [prompt])
-    if result.returncode != 0:
-        raise AiImageError("GENERATION_FAILED", f"Backend exited with status {result.returncode}", EXIT_PROCESS, {"stdout": result.stdout, "stderr": result.stderr})
-    if not output.is_file() or output.stat().st_size <= 0:
-        raise AiImageError("OUTPUT_MISSING", f"Backend completed but output was not created: {output}", EXIT_PROCESS)
+    retries = int(cfg.get("technical_retry_attempts") or 0)
+    result, technical_attempt, duration = execute_with_retries(argv=argv, cwd=output.parent, env_overrides=backend.get("environment") or {}, timeout=timeout, sensitive_values=[prompt, raw_prompt], retries=retries, output=output, op_name="generation")
+    payload["technical_attempt"] = technical_attempt
+    payload["duration_seconds"] = duration
     actual_w, actual_h = image_dimensions(output)
     if actual_w and actual_h:
         payload["actual_width"], payload["actual_height"] = actual_w, actual_h
         if (actual_w, actual_h) != (width, height):
             payload["warnings"].append(f"output dimensions {actual_w}x{actual_h} differ from requested {width}x{height}")
-    metadata = write_metadata(output, payload, bool(cfg.get("metadata_sidecar", True)))
-    payload["metadata"] = metadata
+    payload["backend_stdout"] = result.stdout
+    payload["backend_stderr"] = result.stderr
+    payload["metadata"] = write_metadata(output, payload, bool(cfg.get("metadata_sidecar", True)))
+    safe_emit(payload, args.json)
+    return 0
+
+
+def cmd_edit(args: argparse.Namespace) -> int:
+    cfg, root = load_config()
+    role, backend_name, backend, executable = validate_role(cfg, "editing", "edit")
+    policy_name, policy = policy_config(cfg, role)
+    brief_path = Path(args.brief).expanduser().resolve()
+    input_path = Path(args.input).expanduser().resolve()
+    references = [Path(p).expanduser().resolve() for p in (args.reference or [])]
+    all_images = [input_path] + references
+    for image in all_images:
+        if not image.is_file():
+            raise AiImageError("INPUT_NOT_FOUND", f"Edit input/reference does not exist: {image}", EXIT_CONFIG)
+    requested_output = Path(args.output).expanduser().resolve()
+    output = attempt_output_path(requested_output, args.quality_attempt, args.exact_output)
+    ensure_output_available(output, args.overwrite, args.dry_run)
+    raw_prompt = prompt_from_brief(brief_path)
+    prompt = compose_prompt(raw_prompt, role, policy)
+    seed = int(args.seed) if args.seed is not None else secrets.randbelow(2_147_483_647)
+    params = role.get("parameters") if isinstance(role.get("parameters"), dict) else {}
+    mapping: dict[str, Any] = {"model": str(role.get("model")), "prompt": prompt, "brief": str(brief_path), "output": str(output), "input": str(input_path), "image_paths": [str(p) for p in all_images], "seed": seed}
+    mapping.update({str(k): v for k, v in params.items()})
+    argv = [executable] + format_argv(backend.get("edit_args"), mapping)
+    payload = base_metadata(cfg, operation="edit", requested_role="editing", effective_role="editing", role=role, backend_name=backend_name, executable=executable, policy_name=policy_name, policy=policy, quality_attempt=args.quality_attempt)
+    payload.update({
+        "status": "planned" if args.dry_run else "success",
+        "config_dir": str(root),
+        "requested_output": str(requested_output),
+        "output": str(output),
+        "seed": seed,
+        "brief_path": str(brief_path),
+        "brief_sha256": sha256_file(brief_path),
+        "prompt_sha256": sha256_text(prompt),
+        "input": {"path": str(input_path), "sha256": sha256_file(input_path)},
+        "references": [{"path": str(p), "sha256": sha256_file(p)} for p in references],
+        "technical_attempt": 0,
+        "upscaled": False,
+        "warnings": [],
+        "command": redacted_argv(argv, [prompt, raw_prompt]),
+    })
+    if args.dry_run:
+        safe_emit(payload, args.json)
+        return 0
+    output.parent.mkdir(parents=True, exist_ok=True)
+    timeout = int(backend.get("timeout_seconds") or cfg.get("default_timeout_seconds") or 900)
+    retries = int(cfg.get("technical_retry_attempts") or 0)
+    result, technical_attempt, duration = execute_with_retries(argv=argv, cwd=output.parent, env_overrides=backend.get("environment") or {}, timeout=timeout, sensitive_values=[prompt, raw_prompt], retries=retries, output=output, op_name="edit")
+    payload["technical_attempt"] = technical_attempt
+    payload["duration_seconds"] = duration
+    w, h = image_dimensions(output)
+    if w and h:
+        payload["actual_width"], payload["actual_height"] = w, h
+    payload["backend_stdout"] = result.stdout
+    payload["backend_stderr"] = result.stderr
+    payload["metadata"] = write_metadata(output, payload, bool(cfg.get("metadata_sidecar", True)))
     safe_emit(payload, args.json)
     return 0
 
 
 def cmd_upscale(args: argparse.Namespace) -> int:
     cfg, root = load_config()
-    role, backend_name, backend, executable = validate_role_for_generation(cfg, "upscale", "upscale")
+    role, backend_name, backend, executable = validate_role(cfg, "upscale", "upscale")
+    policy_name, policy = policy_config(cfg, role)
     input_path = Path(args.input).expanduser().resolve()
-    output = Path(args.output).expanduser().resolve()
     if not input_path.is_file():
         raise AiImageError("INPUT_NOT_FOUND", f"Input image does not exist: {input_path}", EXIT_CONFIG)
+    requested_output = Path(args.output).expanduser().resolve()
+    output = attempt_output_path(requested_output, args.quality_attempt, args.exact_output)
+    ensure_output_available(output, args.overwrite, args.dry_run)
     params = role.get("parameters") if isinstance(role.get("parameters"), dict) else {}
-    mapping: dict[str, Any] = {"model": str(role.get("model")), "input": str(input_path), "output": str(output)}
+    resolution = args.resolution if args.resolution is not None else params.get("resolution", "2x")
+    softness = args.softness if args.softness is not None else params.get("softness", 0.5)
+    mapping: dict[str, Any] = {"model": str(role.get("model")), "input": str(input_path), "output": str(output), "resolution": resolution, "softness": softness}
     mapping.update({str(k): v for k, v in params.items()})
+    mapping["resolution"], mapping["softness"] = resolution, softness
     argv = [executable] + format_argv(backend.get("upscale_args"), mapping)
-    payload: dict[str, Any] = {
-        "status": "planned" if args.dry_run else "success", "operation": "upscale",
-        "input": str(input_path), "output": str(output), "backend": backend_name,
-        "role": "upscale", "model": str(role.get("model")), "upscaled": True,
-        "attempt": 1, "warnings": [], "config_dir": str(root),
-    }
+    payload = base_metadata(cfg, operation="upscale", requested_role="upscale", effective_role="upscale", role=role, backend_name=backend_name, executable=executable, policy_name=policy_name, policy=policy, quality_attempt=args.quality_attempt)
+    payload.update({
+        "status": "planned" if args.dry_run else "success",
+        "config_dir": str(root),
+        "requested_output": str(requested_output),
+        "output": str(output),
+        "input": {"path": str(input_path), "sha256": sha256_file(input_path)},
+        "resolution": resolution,
+        "softness": softness,
+        "technical_attempt": 0,
+        "upscaled": True,
+        "warnings": [],
+        "command": argv,
+    })
     if args.dry_run:
-        payload["command"] = argv
         safe_emit(payload, args.json)
         return 0
     output.parent.mkdir(parents=True, exist_ok=True)
     timeout = int(backend.get("timeout_seconds") or cfg.get("default_timeout_seconds") or 900)
-    result = run_process(argv, output.parent, backend.get("environment") or {}, timeout)
-    if result.returncode != 0:
-        raise AiImageError("UPSCALE_FAILED", f"Upscale backend exited with status {result.returncode}", EXIT_PROCESS, {"stdout": result.stdout, "stderr": result.stderr})
-    if not output.is_file() or output.stat().st_size <= 0:
-        raise AiImageError("OUTPUT_MISSING", f"Upscaler completed but output was not created: {output}", EXIT_PROCESS)
+    retries = int(cfg.get("technical_retry_attempts") or 0)
+    result, technical_attempt, duration = execute_with_retries(argv=argv, cwd=output.parent, env_overrides=backend.get("environment") or {}, timeout=timeout, sensitive_values=None, retries=retries, output=output, op_name="upscale")
+    payload["technical_attempt"] = technical_attempt
+    payload["duration_seconds"] = duration
     w, h = image_dimensions(output)
     if w and h:
         payload["actual_width"], payload["actual_height"] = w, h
+    payload["backend_stdout"] = result.stdout
+    payload["backend_stderr"] = result.stderr
     payload["metadata"] = write_metadata(output, payload, bool(cfg.get("metadata_sidecar", True)))
     safe_emit(payload, args.json)
     return 0
 
 
+def cmd_review(args: argparse.Namespace) -> int:
+    image = Path(args.input).expanduser().resolve()
+    if not image.is_file():
+        raise AiImageError("INPUT_NOT_FOUND", f"Reviewed image does not exist: {image}", EXIT_CONFIG)
+    sidecar = Path(str(image) + ".ai-image.json")
+    if not sidecar.is_file():
+        raise AiImageError("METADATA_MISSING", f"No ai-image sidecar exists for reviewed image: {sidecar}", EXIT_CONFIG)
+    data = load_json(sidecar, True)
+    review = {
+        "decision": args.decision,
+        "reasons": args.reason or [],
+        "reviewed_at_utc": utc_now(),
+        "reviewer": args.reviewer,
+    }
+    data["review"] = review
+    temp = sidecar.with_name(sidecar.name + f".tmp-{os.getpid()}-{secrets.token_hex(4)}")
+    temp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(temp, sidecar)
+    payload = {"status": "ok", "input": str(image), "metadata": str(sidecar), "review": review}
+    safe_emit(payload, args.json)
+    return 0
+
+
+def cmd_promote(args: argparse.Namespace) -> int:
+    """Publish an already-accepted candidate to the caller's final delivery path.
+
+    Promotion copies bytes. It never re-runs a model, so the delivered asset is
+    provably the artifact that was visually reviewed, and the candidate plus its
+    review sidecar survive untouched as the audit trail.
+    """
+    candidate = Path(args.input).expanduser().resolve()
+    if not candidate.is_file():
+        raise AiImageError("INPUT_NOT_FOUND", f"Candidate image does not exist: {candidate}", EXIT_CONFIG)
+    candidate_sidecar = Path(str(candidate) + ".ai-image.json")
+    if not candidate_sidecar.is_file():
+        raise AiImageError("METADATA_MISSING", f"No ai-image sidecar exists for candidate: {candidate_sidecar}", EXIT_CONFIG)
+
+    data = load_json(candidate_sidecar, True)
+    review = data.get("review") if isinstance(data.get("review"), dict) else None
+    decision = str(review.get("decision") or "") if review else ""
+    if decision != "accepted":
+        raise AiImageError(
+            "CANDIDATE_NOT_ACCEPTED",
+            "Only a candidate whose sidecar records review.decision=accepted may be promoted; "
+            f"found {decision or 'no recorded review'}: {candidate_sidecar}",
+            EXIT_CONFIG,
+        )
+
+    output = Path(args.output).expanduser().resolve()
+    if output == candidate:
+        raise AiImageError("PROMOTION_SOURCE_IS_DESTINATION", f"Promotion destination must differ from the candidate: {output}", EXIT_CONFIG)
+    ensure_output_available(output, args.overwrite, args.dry_run)
+
+    candidate_hash = sha256_file(candidate)
+    promoted_at = utc_now()
+    payload = {
+        "status": "ok",
+        "operation": "promote",
+        "ai_image_version": VERSION,
+        "input": str(candidate),
+        "output": str(output),
+        "promoted_from": str(candidate),
+        "promoted_from_sha256": candidate_hash,
+        "promoted_at_utc": promoted_at,
+        "quality_attempt": data.get("quality_attempt"),
+        "review": review,
+        "regenerated": False,
+        "warnings": [],
+    }
+    if args.dry_run:
+        safe_emit(payload, args.json)
+        return 0
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temp = output.with_name(output.name + f".tmp-{os.getpid()}-{secrets.token_hex(4)}")
+    try:
+        shutil.copyfile(candidate, temp)
+        os.replace(temp, output)
+    except OSError as exc:
+        if temp.exists():
+            temp.unlink(missing_ok=True)
+        raise AiImageError("PROMOTION_COPY_FAILED", f"Could not publish accepted candidate: {exc}", EXIT_RUNTIME) from exc
+
+    promoted_hash = sha256_file(output)
+    if promoted_hash != candidate_hash:
+        raise AiImageError(
+            "PROMOTION_HASH_MISMATCH",
+            f"Promoted image hash {promoted_hash} does not match accepted candidate hash {candidate_hash}",
+            EXIT_RUNTIME,
+        )
+
+    # Preserve the candidate's generation/edit provenance, original quality
+    # attempt, and original review verbatim; add only promotion lineage.
+    final_metadata = dict(data)
+    final_metadata["promoted_from"] = str(candidate)
+    final_metadata["promoted_from_sha256"] = candidate_hash
+    final_metadata["promoted_at_utc"] = promoted_at
+    payload["sha256"] = promoted_hash
+    payload["metadata"] = write_metadata(output, final_metadata, True)
+    safe_emit(payload, args.json)
+    return 0
+
+
+def add_common_output_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--quality-attempt", type=int, default=1, help="visual-quality attempt number; >1 gets a deterministic .attempt-NN suffix")
+    parser.add_argument("--exact-output", action="store_true", help="disable automatic quality-attempt output suffixing")
+    parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="ai-image", description="Stable local-first image generation wrapper")
+    parser = argparse.ArgumentParser(prog="ai-image", description="Stable local-first image generation/edit/upscale wrapper")
     sub = parser.add_subparsers(dest="command", required=True)
+
     p = sub.add_parser("version", help="show wrapper version")
     p.set_defaults(func=lambda a: (print(VERSION), 0)[1])
+
     p = sub.add_parser("doctor", help="check configuration and runtime readiness")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_doctor)
+
     p = sub.add_parser("config", help="show safe effective configuration metadata")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_config)
-    p = sub.add_parser("generate", help="generate an image from a brief")
+
+    p = sub.add_parser("policy", help="show caller-visible visual acceptance policy for a role")
+    p.add_argument("--purpose", required=True, choices=GENERATION_ROLES)
+    p.add_argument("--use-fallback", action="store_true")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_policy)
+
+    p = sub.add_parser("generate", help="generate one candidate image from a brief")
     p.add_argument("--brief", required=True)
-    p.add_argument("--purpose", required=True, choices=ROLES[:-1])
+    p.add_argument("--purpose", required=True, choices=GENERATION_ROLES)
     p.add_argument("--aspect", required=True)
     p.add_argument("--quality", choices=QUALITIES, default=None)
-    p.add_argument("--output", required=True)
     p.add_argument("--seed", type=int)
-    p.add_argument("--allow-cloud", action="store_true", help="reserved for an explicitly configured future cloud provider")
-    p.add_argument("--json", action="store_true")
-    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--use-fallback", action="store_true", help="explicitly use the role's configured fallback route")
+    p.add_argument("--allow-cloud", action="store_true", help="reserved for a future explicitly configured cloud provider")
+    add_common_output_args(p)
     p.set_defaults(func=cmd_generate)
-    p = sub.add_parser("upscale", help="upscale an existing image")
+
+    p = sub.add_parser("edit", help="edit an image using one input and optional reference images")
     p.add_argument("--input", required=True)
-    p.add_argument("--output", required=True)
+    p.add_argument("--reference", action="append", default=[], help="additional reference image; repeat for multiple references")
+    p.add_argument("--brief", required=True)
+    p.add_argument("--seed", type=int)
+    add_common_output_args(p)
+    p.set_defaults(func=cmd_edit)
+
+    p = sub.add_parser("upscale", help="upscale an accepted image with SeedVR2")
+    p.add_argument("--input", required=True)
+    p.add_argument("--resolution", help="target shortest side or scale factor, e.g. 2160 or 2x")
+    p.add_argument("--softness", type=float)
+    add_common_output_args(p)
+    p.set_defaults(func=cmd_upscale)
+
+    p = sub.add_parser("review", help="record an external visual review decision in the image sidecar")
+    p.add_argument("--input", required=True)
+    p.add_argument("--decision", required=True, choices=("accepted", "rejected"))
+    p.add_argument("--reason", action="append", default=[])
+    p.add_argument("--reviewer", default="external-vision-review")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_review)
+
+    p = sub.add_parser("promote", help="publish an accepted candidate to a final delivery path by copying bytes")
+    p.add_argument("--input", required=True, help="accepted candidate image whose sidecar records review.decision=accepted")
+    p.add_argument("--output", required=True, help="final delivery path")
+    p.add_argument("--overwrite", action="store_true", help="replace an existing destination; refused by default")
     p.add_argument("--json", action="store_true")
     p.add_argument("--dry-run", action="store_true")
-    p.set_defaults(func=cmd_upscale)
+    p.set_defaults(func=cmd_promote)
     return parser
 
 
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    if getattr(args, "quality", None) is None:
+    if hasattr(args, "quality_attempt") and args.quality_attempt < 1:
+        safe_emit({"status": "error", "code": "QUALITY_ATTEMPT_INVALID", "message": "--quality-attempt must be >= 1"}, bool(getattr(args, "json", False)))
+        return EXIT_CONFIG
+    if getattr(args, "quality", None) is None and getattr(args, "command", None) == "generate":
         try:
             cfg, _ = load_config()
             args.quality = str(cfg.get("default_quality") or "high")
@@ -486,8 +922,7 @@ def main() -> int:
         safe_emit(payload, bool(getattr(args, "json", False)))
         return exc.exit_code
     except KeyboardInterrupt:
-        payload = {"status": "error", "code": "INTERRUPTED", "message": "Image operation interrupted"}
-        safe_emit(payload, bool(getattr(args, "json", False)))
+        safe_emit({"status": "error", "code": "INTERRUPTED", "message": "Image operation interrupted"}, bool(getattr(args, "json", False)))
         return EXIT_PROCESS
 
 
