@@ -99,6 +99,8 @@ export NVM_DIR="$HOME/.nvm"
 # bun completions
 [ -s "/Users/manish/.bun/_bun" ] && source "/Users/manish/.bun/_bun"
 
+export PATH="/Users/manish/.local/bin:$PATH"
+
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"

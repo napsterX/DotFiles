@@ -17,6 +17,3 @@ setopt   autoresume histignoredups pushdsilent noclobber
 setopt   autopushd pushdminus extendedglob rcquotes mailwarning
 unsetopt bgnice autoparamslash
 unsetopt ALL_EXPORT
-
-# To disable auto completion * on command line
-setopt +o nomatch
