@@ -7,7 +7,13 @@ REPO="${HOME}/git/DotFiles"
 DEST="${REPO}/global-claude"
 
 BACKUP_DIRECTORIES=(
-  skills
+  # skills/ is intentionally absent. Agent skills are owned by
+  # EngineeringToolsMK (skills/global/), and ~/.claude/skills now holds
+  # per-skill symlinks into that repository. rsync -a preserves symlinks, so
+  # backing the directory up here would capture links pointing at another
+  # repository rather than the skills themselves, and would recreate a second,
+  # misleading source of truth for content that is already version controlled.
+  # Removed 2026-08-21 when the skills were centralized.
   agents
   commands
   rules
